@@ -63,6 +63,16 @@ ICAR Reference App
 
 Icar provider service is reference app for adding contents related to vistaar network. Provider can register themselves and add their contents to this app. Provider can create/read/update/delete their contents.
 
+## API Integrations
+
+This service includes the following API integrations:
+
+- **PM Kisan Installment Check** - Check PM Kisan installment status and beneficiary details
+- **Scheme Information** - Retrieve information about various agricultural schemes
+- **PMFBY Status Check** - Check Pradhan Mantri Fasal Bima Yojana (PMFBY) policy and claim status
+- **Weather Forecast** - Get weather forecast data from IMD (Indian Meteorological Department) based on GPS coordinates
+- **Grievance** - Handle and process grievance-related requests
+
 Steps to install this app.
 
 1. Git clone https://github.com/tekdi/icar-provider-service.git
@@ -75,23 +85,19 @@ Steps to install this app.
 
 5. run http://localhost:3000 on your browser to test the app is running
 
-6. Add .env file in this format
+6. Copy `.env.example` to `.env` and update the values:
 
-        HASURA_URL= https://onest-bap.tekdinext.com/hasura/v1/graphql
-        HASURA_GRAPHQL_ADMIN_SECRET= "******"
-        HASURA_NAMESPACE= icar_
-        PORT=3000
-        S3_REGION=ap-south-1
-        S3_BUCKET=onest-bucket
-        SECRET_ACCESS_KEY=******
-        ACCESS_KEY_ID=******
-        EXPIRES_IN=3600
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` file with your actual configuration values. See `.env.example` for all required environment variables including:
+
+- Hasura Configuration
+- AWS S3 Configuration
+- Database Configuration (for Weather Forecast)
+- API Keys and Tokens
+- Email Service Configuration
 
 7. Restart the server: npm run start
-
-Import the postman collection to test the api:
-
-link: https://www.postman.com/grey-escape-31127/workspace/icar-reference-app/collection/18319029-1a41994e-a329-4c15-b965-1ee478a6e71f?action=share&creator=18319029
-
-
 

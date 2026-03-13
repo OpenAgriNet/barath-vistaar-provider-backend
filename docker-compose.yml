@@ -1,11 +1,30 @@
-version: "3.6"
+# version: "3.6"
+
+# services:
+#   backend:
+#     image: icar-service-backend-jun-9:latest_v1.0.1
+#     container_name: "icar-service-backend-jun-9-v1.0.1" 
+#     restart: always 
+#     ports:
+#       - 3444:3444
+#     env_file:
+#       - ./.env
+#     networks:
+#       - beckn_network_metrics
+# networks:
+#   beckn_network_metrics:
+#     external: true
+
+
+
+
+
 
 services:
   backend:
-    image: icar-service-backend
-    container_name: "icar-service-backend" 
-    restart: always 
-    ports:
-      - 3444:3000
+    image: beckn-onix-network-provider:latest_v1.0.1
+    container_name: "beckn-onix-network-provider-v1.0.1"
+    restart: always
+    network_mode: "host"
     env_file:
-      - /home/ubuntu/onest/icar-service-provider-backend/.env
+      - ./.env

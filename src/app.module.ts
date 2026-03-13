@@ -11,6 +11,10 @@ import { SeekerModule } from './seeker/seeker.module';
 import { HasuraService } from './services/hasura/hasura.service';
 import { S3Service } from './services/s3/s3.service';
 import { SeekerService } from './seeker/seeker.service';
+import { PmfbyService } from './services/pmfby/pmfby.service';
+import { WeatherForecastService } from './services/weatherforecast/weatherforecast.service';
+import { DatabaseService } from './services/weatherforecast/database.service';
+import { MandiService } from './services/mandi/mandi.service';
 
 
 @Module({
@@ -24,6 +28,6 @@ import { SeekerService } from './seeker/seeker.service';
     AdminModule, ProviderModule, SeekerModule,
   ],
   controllers: [AppController],
-  providers: [AppService, LoggerService, HasuraService, S3Service,SeekerService],
+  providers: [AppService, LoggerService, HasuraService, S3Service, SeekerService, PmfbyService, WeatherForecastService, DatabaseService, MandiService],
 })
 export class AppModule {}

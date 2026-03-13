@@ -82,7 +82,7 @@ export const scholarshipCatalogGenerator = (
                     ? encodeURI(
                       'https://thumbs.dreamstime.com/b/set-colored-pencils-placed-random-order-16759556.jpg'
                     )
-                    : encodeURI('https://image/'+course.image),
+                    : encodeURI('https://image/' + course.image),
               },
             ],
           },
@@ -411,40 +411,40 @@ export const IcarCatalogGenerator2 = (
   catalog['descriptor'] = { name: `Catalog for ${query}` };
   // adding providers
   catalog['providers'] = Object.keys(providerWise).map((provider: string) => {
-    
+
     const providerObj: components['schemas']['Provider'] = {
       id: provider,
       descriptor: {
         name: 'Icar',
       },
-      
+
       categories: providerWise[provider].map((content: any) => {
 
         const providerItem = {
           id: `${content.id}`,
           parent_category_id: `${content.id}` || '',
           descriptor: {
-            name: content.publisher? content.publisher :"",
+            name: content.publisher ? content.publisher : "",
           }
         };
-        
+
         return providerItem;
       }),
 
-      locations:  providerWise[provider].map((content: any) => {
+      locations: providerWise[provider].map((content: any) => {
 
         const LocationsItem = {
-          id:"L1",
-              state:{
-                name:Array.isArray(content.state) && content.state.length > 0
-                ? content.state.join(', ')
-                : (content.state?content.state:""),
-                code:""
-              }
+          id: "L1",
+          state: {
+            name: Array.isArray(content.state) && content.state.length > 0
+              ? content.state.join(', ')
+              : (content.state ? content.state : ""),
+            code: ""
+          }
         }
         return LocationsItem
-        }
-          ),
+      }
+      ),
 
 
 
@@ -453,13 +453,13 @@ export const IcarCatalogGenerator2 = (
 
         const providerItem = {
           id: `${content.id}`,
-          parent_item_id: `${content.id}`?`${content.id}`:"",
+          parent_item_id: `${content.id}` ? `${content.id}` : "",
           descriptor: {
-            name: content.title? content.title :"",
-            content_id: content.content_id ? content.content_id :"" ,
-            description: content.description?content.description:"" ,
-            icon: content.icon? content.icon: "",
-            publisher: content.publisher ? content.publisher :"",
+            name: content.title ? content.title : "",
+            content_id: content.content_id ? content.content_id : "",
+            description: content.description ? content.description : "",
+            icon: content.icon ? content.icon : "",
+            publisher: content.publisher ? content.publisher : "",
             // domain: course.domain,
             // crop: content.crop,
             // language: content.language,
@@ -481,11 +481,11 @@ export const IcarCatalogGenerator2 = (
             images: [
               {
                 url:
-                content.image == null
+                  content.image == null
                     ? encodeURI(
                       'https://thumbs.dreamstime.com/b/set-colored-pencils-placed-random-order-16759556.jpg'
                     )
-                    : encodeURI('https://image/'+content.icon),
+                    : encodeURI('https://image/' + content.icon),
               },
             ],
           },
@@ -506,7 +506,7 @@ export const IcarCatalogGenerator2 = (
           // rating: averageRating(content) || '',
           // rateable: true,
           ...(isNaN(average) ? {} : { rating: average.toString(), rateable: true }),
-          
+
           //rating: averageRating(content),
           tags: [
             {
@@ -541,7 +541,7 @@ export const IcarCatalogGenerator2 = (
               ],
             },
           ],
-          
+
         };
         return providerItem;
       }),
@@ -552,12 +552,8 @@ export const IcarCatalogGenerator2 = (
   return catalog;
 }
 
-export const IcarCatalogGenerator = (
-  apiData: any,
-  query: string,
-) => {
-  const courses: ReadonlyArray<{ node: any }> =
-    apiData;
+export const IcarCatalogGenerator = (apiData: any, query: string) => {
+  const courses: ReadonlyArray<{ node: any }> = apiData;
   const providerWise = {};
   let categories: any = new Set();
 
@@ -575,22 +571,21 @@ export const IcarCatalogGenerator = (
   categories = [];
 
   const catalog = {};
-  catalog['descriptor'] = { name: `Catalog for ${query}` };
+  catalog["descriptor"] = { name: `Catalog for ${query}` };
   // adding providers
-  catalog['providers'] = Object.keys(providerWise).map((provider: string) => {
-    
-    const providerObj: components['schemas']['Provider'] = {
-      id: provider,
+  catalog["providers"] = Object.keys(providerWise).map((provider: string) => {
+    const providerObj: components["schemas"]["Provider"] = {
+      id: provider == "null" ? "2030" : provider,
       descriptor: {
-        name: 'Icar',
-      //   images: [
-      //     {
-      //         "url": "https://agri_acad.example.org/logo.png"
-      //     }
-      // ],
-      short_desc: "Icar Academic aggregator"
+        name: "Icar",
+        //   images: [
+        //     {
+        //         "url": "https://agri_acad.example.org/logo.png"
+        //     }
+        // ],
+        short_desc: "Icar Academic aggregator",
       },
-      
+
       // categories: providerWise[provider].map((content: any) => {
 
       //   const providerItem = {
@@ -600,27 +595,33 @@ export const IcarCatalogGenerator = (
       //       name: content.publisher,
       //     }
       //   };
-        
+
       //   return providerItem;
       // }),
       items: providerWise[provider].map((content: any) => {
         const average = averageRating(content);
 
         const providerItem = {
-          id: `${content.id}`,
+          id: content.id == "null" ? "2030" : content.id?.toString(),
           descriptor: {
-            name: content.title,
-            short_desc: content.description.slice(0, 30) + '...',
-            long_desc: content.description,
+            name: content?.title ?? "",
+            short_desc: content?.description?.slice(0, 30) + "...",
+            long_desc: content?.description ?? "",
             media: [
-                {
-                    mimetype: content.mimetype ? content.mimetype : "video/mp4",
-                    url: encodeURI(content.url.trim())
-                }
+              {
+                mimetype: content.mimetype ? content.mimetype : "video/mp4",
+                url:
+                  encodeURI(content?.url?.trim()) == "undefined"
+                    ? "https://icar.tekdinext.com/assets/school_logo-5f321ef5.png"
+                    : encodeURI(content?.url?.trim()),
+              },
             ],
             images: [
               {
-                url: encodeURI(content.icon.trim())
+                url:
+                  encodeURI(content?.url?.trim()) == "undefined"
+                    ? "https://icar.tekdinext.com/assets/school_logo-5f321ef5.png"
+                    : encodeURI(content?.url?.trim()),
               },
             ],
           },
@@ -642,7 +643,7 @@ export const IcarCatalogGenerator = (
           // // rating: averageRating(content) || '',
           // // rateable: true,
           // ...(isNaN(average) ? {} : { rating: average.toString(), rateable: true }),
-          
+
           //rating: averageRating(content),
           // tags: [
           //   {
@@ -684,8 +685,8 @@ export const IcarCatalogGenerator = (
           //   },
           // ],
         };
-        if(averageRating(content)) {
-          providerItem['rating'] = averageRating(content).toString()
+        if (averageRating(content)) {
+          providerItem["rating"] = averageRating(content).toString();
         }
         return providerItem;
       }),
@@ -694,7 +695,7 @@ export const IcarCatalogGenerator = (
   });
 
   return catalog;
-}
+};
 
 
 
@@ -703,10 +704,10 @@ export const averageRating = (
 ) => {
   let sum = 0;
   const crr = data.ContentRatingRelationship
-  if(crr.length) {
+  if (crr.length) {
     crr.forEach(i => sum += i.ratingValue)
   }
-  const average = sum/crr.length
+  const average = sum / crr.length
   return average
 }
 
@@ -718,7 +719,7 @@ export const feedback = (data: any) => {
   };
 
   const filteredData = data.ContentRatingRelationship
-  .filter(item => item.feedback && item.feedback.trim() !== "null" && item.feedback.trim() !== "undefined");
+    .filter(item => item.feedback && item.feedback.trim() !== "null" && item.feedback.trim() !== "undefined");
   filteredData.sort((a, b) => b.id - a.id);
 
 
@@ -763,12 +764,12 @@ export const flnCatalogGenerator = (
   //categories = [];
 
   const catalog = {};
-  if(query) {
+  if (query) {
     catalog['descriptor'] = { name: `Catalog for ${query}` };
   } else {
     catalog['descriptor'] = {}
   }
-  
+
 
   // adding providers
   console.log("providerWise", providerWise)
@@ -1094,6 +1095,410 @@ const isValidUrl = (str: string) => {
     return false;
   }
 };
+
+export const PmKisanIcarGenerator = (apiData: any, query: string) => {
+  const schemes: ReadonlyArray<{ node: any }> = apiData;
+  const providerWise: Record<string, any[]> = {};
+  const defaultProvider = 'SchemeFinder';
+
+  // Create provider-wise mapping
+  schemes.forEach((scheme: any) => {
+    const provider = defaultProvider;
+    if (providerWise[provider]) {
+      providerWise[provider].push(scheme);
+    } else {
+      providerWise[provider] = [scheme];
+    }
+  });
+
+  // Catalog descriptor
+  const catalog: any = {
+    descriptor: query ? { name: `Catalog for ${query}` } : {},
+    providers: Object.keys(providerWise).map((provider: string) => {
+      return {
+        descriptor: {
+          name: 'SchemeFinder',
+          short_desc: 'A Scheme Discovery and Application Service helps users discover',
+        },
+        items: providerWise[provider].map((item: any) => {
+          return {
+            id: item.content_id || '',
+            descriptor: {
+              name: item?.title ?? '',
+              short_desc: (item?.description || '').slice(0, 30) + '...',
+              long_desc: item?.description ?? '',
+            },
+            tags: [
+              {
+                display: true,
+                descriptor: {
+                  code: 'scheme-details',
+                  name: 'Scheme Details',
+                },
+                list: [
+                  {
+                    descriptor: { code: 'title', name: 'Title' },
+                    value: item.title || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'agri_domain', name: 'Agricultural Domain' },
+                    value: item.agri_domain || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scope', name: 'Scope' },
+                    value: item.scope || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme_id', name: 'Scheme ID' },
+                    value: item.scheme_id || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-intro', name: 'Scheme Introduction' },
+                    value: item.scheme_intro?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-benefits', name: 'Scheme Benefits' },
+                    value: item.scheme_benefits?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-eligibility', name: 'Scheme Eligibility' },
+                    value: item.scheme_eligibility?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-support', name: 'Scheme Support' },
+                    value: item.scheme_support?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-misc', name: 'Additional Information' },
+                    value: item.scheme_misc?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'scheme-application', name: 'Scheme Application' },
+                    value: item.scheme_application?.summary || '',
+                    display: true,
+                  },
+                  {
+                    descriptor: { code: 'faq-url', name: 'FAQ URL' },
+                    value: item.faq_url || '',
+                    display: true,
+                  },
+                ],
+              },
+            ],
+          };
+        }),
+      };
+    }),
+  };
+
+  return catalog;
+};
+export const pmfbyPolicyGenerator = (apiData: any, query: string) => {
+  const policies: any[] = apiData;
+  const providerWise: Record<string, any[]> = {};
+  const defaultProvider = 'SchemeFinder';
+
+  // Group all under one provider
+  providerWise[defaultProvider] = policies;
+
+  const catalog: any = {
+    order: {
+      descriptor: query ? { name: `Details of ${query}` } : {},
+      providers: Object.keys(providerWise).map((provider: string) => {
+        return {
+          descriptor: {
+            name: 'SchemeFinder',
+            short_desc: `PMFBY ${query} Listing via SchemeFinder`,
+          },
+          items: providerWise[provider].map((policy: any, index: number) => {
+            return {
+              id: policy.policyID || `${index}`,
+              descriptor: {
+                name: `Policy ID: ${policy.policyID}`,
+                short_desc: `${policy.insuranceCompanyName}`,
+                long_desc: `Policy for ${policy.relativeName} (${policy.relation}) from ${policy.districtName}, ${policy.stateName}`,
+              },
+              tags: [
+                {
+                  descriptor: {
+                    code: 'inquiry-type',
+                    name: 'Inquiry Type'
+                  },
+                  value: 'policy_status',
+                  display: true
+                },
+                {
+                  display: true,
+                  descriptor: {
+                    code: 'policy-details',
+                    name: 'Policy Details',
+                  },
+                  list: [
+                    {
+                      descriptor: { code: 'policy-id', name: 'Policy ID' },
+                      value: policy.policyID,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'state-id', name: 'State ID' },
+                      value: policy.stateID,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'state-name', name: 'State Name' },
+                      value: policy.stateName,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'district-id', name: 'District ID' },
+                      value: policy.districtID,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'district-name', name: 'District Name' },
+                      value: policy.districtName,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'insurance-company-id', name: 'Insurance Company ID' },
+                      value: policy.insuranceCompanyID,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'insurance-company-name', name: 'Insurance Company Name' },
+                      value: policy.insuranceCompanyName,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'mobile', name: 'Mobile Number' },
+                      value: policy.mobile,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'relative-name', name: 'Relative Name' },
+                      value: policy.relativeName,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'relation', name: 'Relation' },
+                      value: policy.relation,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'application-count', name: 'Application Count' },
+                      value: Array.isArray(policy.applicationList) ? policy.applicationList.length : 0,
+                      display: true,
+                    },
+                    ...(Array.isArray(policy.applicationList) && policy.applicationList.length > 0
+                      ? policy.applicationList.map((app: any, idx: number) => ({
+                        display: true,
+                        descriptor: {
+                          code: `application-${idx + 1}`,
+                          name: `Application ${idx + 1}`,
+                        },
+                        list: [
+                          { descriptor: { code: 'application-no', name: 'Application No' }, value: app.applicationNo, display: true },
+                          { descriptor: { code: 'village-name', name: 'Village Name' }, value: app.villageName, display: true },
+                          { descriptor: { code: 'village-id', name: 'Village ID' }, value: app.villageID, display: true },
+                          { descriptor: { code: 'khata-no', name: 'Khata No' }, value: app.khataNo, display: true },
+                          { descriptor: { code: 'land-division-number', name: 'Land Division Number' }, value: app.landDivisionNumber, display: true },
+                          { descriptor: { code: 'land-survey-number', name: 'Land Survey Number' }, value: app.landSurveyNumber, display: true },
+                          { descriptor: { code: 'policy-area', name: 'Policy Area' }, value: app.policyArea, display: true },
+                          { descriptor: { code: 'ratio', name: 'Ratio' }, value: app.ratio, display: true },
+                          { descriptor: { code: 'crop-id', name: 'Crop ID' }, value: app.cropID, display: true },
+                          { descriptor: { code: 'crop-name', name: 'Crop Name' }, value: app.cropName, display: true },
+                          { descriptor: { code: 'crop-share', name: 'Crop Share' }, value: app.cropShare, display: true },
+                          { descriptor: { code: 'sum-insured', name: 'Sum Insured' }, value: app.sumInsured, display: true },
+                          { descriptor: { code: 'farmer-share', name: 'Farmer Share' }, value: app.farmerShare, display: true },
+                          { descriptor: { code: 'policy-status-code', name: 'Policy Status Code' }, value: app.policyStatusCode, display: true },
+                          { descriptor: { code: 'created-by', name: 'Created By' }, value: app.createdBy, display: true },
+                          { descriptor: { code: 'total-premium', name: 'Total Premium' }, value: app.totalPremium, display: true },
+                          { descriptor: { code: 'insurance-company-code', name: 'Insurance Company Code' }, value: app.insuranceCompanyCode, display: true },
+                          { descriptor: { code: 'created-at', name: 'Created At' }, value: app.createdAt, display: true },
+                          { descriptor: { code: 'sowing-date', name: 'Sowing Date' }, value: app.sowingDate, display: true },
+                          { descriptor: { code: 'insurance-company-name', name: 'Insurance Company Name' }, value: app.insuranceCompanyName, display: true },
+                          { descriptor: { code: 'source', name: 'Source' }, value: app.source, display: true },
+                          { descriptor: { code: 'application-source', name: 'Application Source' }, value: app.applicationSource, display: true },
+                          { descriptor: { code: 'claim-status', name: 'Claim Status' }, value: app.claimStatus, display: true },
+                          { descriptor: { code: 'claim-amount', name: 'Claim Amount' }, value: app.claimAmount, display: true },
+                          { descriptor: { code: 'account-number', name: 'Account Number' }, value: app.accountNumber, display: true },
+                          { descriptor: { code: 'claim-type', name: 'Claim Type' }, value: app.claimType, display: true },
+                          { descriptor: { code: 'retry-payment', name: 'Retry Payment' }, value: app.retryPayment ? 'Yes' : 'No', display: true },
+                          { descriptor: { code: 'is-mix', name: 'Is Mix' }, value: app.isMix ? 'Yes' : 'No', display: true },
+                          { descriptor: { code: 'policy-status', name: 'Policy Status' }, value: app.policyStatus, display: true },
+                          { descriptor: { code: 'cutoff-date', name: 'Cutoff Date' }, value: app.cutOfDate, display: true },
+                          { descriptor: { code: 'season-code', name: 'Season Code' }, value: app.seasonCode, display: true },
+                          { descriptor: { code: 'season-year', name: 'Season Year' }, value: app.seasonYear, display: true },
+                          { descriptor: { code: 'season-name', name: 'Season Name' }, value: app.seasonName, display: true },
+                          { descriptor: { code: 'scheme-name', name: 'Scheme Name' }, value: app.schemeName, display: true },
+                        ]
+                      }))
+                      : []),
+                  ],
+                },
+              ],
+            };
+          }),
+        };
+      }),
+    }
+  };
+  return catalog;
+};
+export const pmfbyClaimStatusGenerator = (apiData: any, query: string) => {
+  console.log("apiData", apiData);
+  const claims: any[] = apiData;
+  const providerWise: Record<string, any[]> = {};
+  const defaultProvider = 'SchemeFinder';
+
+  // Group all claims under one provider
+  providerWise[defaultProvider] = claims;
+
+  const catalog: any = {
+    order: {
+      descriptor: query ? { name: `Details of ${query}` } : {},
+      providers: Object.keys(providerWise).map((provider: string) => {
+        return {
+          descriptor: {
+            name: 'SchemeFinder',
+            short_desc: `PMFBY ${query} Listing via SchemeFinder`,
+          },
+          items: providerWise[provider].map((claim: any, index: number) => {
+            return {
+              id: claim.applicationNo || `${index}`,
+              descriptor: {
+                name: `Application No: ${claim.applicationNo}`,
+                short_desc: `Farmer: ${claim.FarmerName}`,
+                long_desc: `Claim Status: ${claim.ClaimStatus || claim.Status}`,
+              },
+              tags: [
+                {
+                  descriptor: {
+                    code: 'inquiry-type',
+                    name: 'Inquiry Type',
+                  },
+                  value: 'claim_status',
+                  display: true,
+                },
+                {
+                  display: true,
+                  descriptor: {
+                    code: 'claim-details',
+                    name: 'Claim Details',
+                  },
+                  list: [
+                    {
+                      descriptor: { code: 'application-no', name: 'Application No' },
+                      value: claim.applicationNo,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'farmer-name', name: 'Farmer Name' },
+                      value: claim.FarmerName,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'claim-status', name: 'Claim Status' },
+                      value: claim.ClaimStatus || claim.Status,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'status', name: 'Status' },
+                      value: claim.Status,
+                      display: true,
+                    },
+                    {
+                      descriptor: { code: 'claim-date', name: 'Claim Date' },
+                      value: claim.claimDate,
+                      display: !!claim.claimDate,
+                    },
+                    {
+                      descriptor: { code: 'amount', name: 'Amount' },
+                      value: claim.amount,
+                      display: claim.amount != null,
+                    },
+                    {
+                      descriptor: { code: 'utr-number', name: 'UTR Number' },
+                      value: claim.UtrNumber,
+                      display: !!claim.UtrNumber,
+                    },
+                    {
+                      descriptor: { code: 'claim-type', name: 'Claim Type' },
+                      value: claim.ClaimType,
+                      display: !!claim.ClaimType,
+                    },
+                    {
+                      descriptor: { code: 'account-number', name: 'Account Number' },
+                      value: claim.accountNumber,
+                      display: !!claim.accountNumber,
+                    },
+                    {
+                      descriptor: { code: 'ifsc', name: 'IFSC Code' },
+                      value: claim.ifsc,
+                      display: !!claim.ifsc,
+                    },
+                    {
+                      descriptor: { code: 'payment-mode', name: 'Payment Mode' },
+                      value: claim.paymentMode,
+                      display: !!claim.paymentMode,
+                    },
+                    {
+                      descriptor: { code: 'partial-claim', name: 'Partial Claim' },
+                      value: claim.partialClaim,
+                      display: claim.partialClaim !== undefined,
+                    },
+                    {
+                      descriptor: { code: 'total-payable', name: 'Total Payable' },
+                      value: claim.totalPayable,
+                      display: claim.totalPayable != null,
+                    },
+                    {
+                      descriptor: { code: 'aadharPaymentAccountNumber', name: 'Aadhar Payment Account Number' },
+                      value: claim.aadharPaymentAccountNumber,
+                      display: claim.aadharPaymentAccountNumber != null,
+                    },
+                    {
+                      descriptor: { code: 'aadharPaymentBankName', name: 'Aadhar Payment Bank Name' },
+                      value: claim.aadharPaymentBankName,
+                      display: claim.aadharPaymentBankName != null,
+                    },
+                    {
+                      descriptor: { code: 'aadharPaymentFarmerName', name: 'Aadhar Payment Farmer Name' },
+                      value: claim.aadharPaymentFarmerName,
+                      display: claim.aadharPaymentFarmerName != null,
+                    },
+                    {
+                      descriptor: { code: 'aadharPaymentAadharNumber', name: 'Aadhar Payment Aadhar Number' },
+                      value: claim.aadharPaymentAadharNumber,
+                      display: claim.aadharPaymentAadharNumber != null,
+                    },
+                  ],
+                },
+              ],
+            };
+          }),
+        };
+      }),
+    }
+  };
+  return catalog;
+};
+
+
+
+
+
+
+
 
 
 
