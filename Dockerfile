@@ -7,14 +7,12 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 
-# Install dependencies (separate RUN avoids npm "Exit handler never called" with cache + native rebuild)
+# Use only valid npm config options
 RUN --mount=type=cache,target=/root/.npm \
-    npm config set fetch-retries 5 \
-    && npm config set fetch-retry-mintimeout 60000 \
-    && npm install --no-audit --no-fund
-
-# Rebuild bcrypt for container arch (in a separate process so npm exits cleanly)
-RUN npm rebuild bcrypt --build-from-source
+    npm config set fetch-retries 10 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm install --prefer-offline --no-audit --no-fund
 
 COPY . .
 

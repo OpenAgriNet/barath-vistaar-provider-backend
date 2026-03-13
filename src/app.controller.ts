@@ -193,6 +193,42 @@ export class AppController {
     return this.appService.handleStatus(body);
   }
 
+  /** Proxy for Vistaar/PMKISAN API (avoids CORS when using vistaar-tester Next.js app from browser) */
+  @Post("vistaar-proxy")
+  async vistaarProxy(
+    @Body() body: { operation: string; EncryptedRequest: string },
+  ) {
+    const base =
+      process.env.PM_KISAN_BASE_URL ||
+      process.env.PM_KISAN_BASE_OTP_URL ||
+      "https://exlink.pmkisan.gov.in/services/chatbotservice.asmx";
+    const paths: Record<string, string> = {
+      sendOtp: "/ChatbotOTP",
+      verifyOtp: "/ChatbotOTPVerified",
+      getUser: "/ChatbotUserDetails",
+    };
+    const path = paths[body?.operation];
+    if (!path || !body?.EncryptedRequest) {
+      throw new HttpException(
+        "Missing operation or EncryptedRequest",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const url = `${base.replace(/\/$/, "")}${path}`;
+    const res = await firstValueFrom(
+      this.httpService.post(url, { EncryptedRequest: body.EncryptedRequest }, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 15000,
+        responseType: "text",
+      }),
+    ).catch((err) => {
+      const status = err.response?.status || HttpStatus.BAD_GATEWAY;
+      const msg = err.response?.data ?? err.message;
+      throw new HttpException(msg, status);
+    });
+    return { data: res.data };
+  }
+
   @Get("feedback/:id")
   @Render("feedback")
   getFeedbackForm(@Param("id") id: string) {

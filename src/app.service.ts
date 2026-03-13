@@ -28,7 +28,6 @@ import {
 } from "./utils/encryption";
 import { LoggerService } from "./services/logger/logger.service";
 import { format } from "date-fns";
-import { startTelemetry } from "./utils/telemetry.helper";
 
 // getting course data
 import * as fs from "fs";
@@ -764,29 +763,31 @@ export class AppService {
     return resp;
   }
 
-  async sendOTP(mobileNumber: string, type: string = "Ben_id"): Promise<any> {
+  async sendOTP(mobileNumber: string, type: string): Promise<any> {
     try {
       // Auto-detect the type if not provided
-      // let detectedType = type;
-      // if (!detectedType) {
-      //   if (/^[6-9]\d{9}$/.test(mobileNumber)) {
-      //     detectedType = "Mobile";
-      //   } else if (mobileNumber.length == 14 && /^[6-9]\d{9}$/.test(mobileNumber.substring(0, 10))) {
-      //     detectedType = "MobileAadhar";
-      //   } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
-      //     detectedType = "Aadhar";
-      //   } else if (mobileNumber.length == 11) {
-      //     detectedType = "Ben_id";
-      //   } else {
-      //     // Default to Ben_id if format doesn't match any known pattern
-      //     detectedType = "Ben_id";
-      //   }
+      let detectedType = type;
+      this.logger.log("detectedType: ", detectedType);
+      this.logger.log("mobileNumber: ", mobileNumber);
+      // if (detectedType=="") {
+        if (/^[6-9]\d{9}$/.test(mobileNumber)) {
+          detectedType = "Mobile";
+        // } else if (mobileNumber.length == 14 && /^[6-9]\d{9}$/.test(mobileNumber.substring(0, 10))) {
+        //   detectedType = "MobileAadhar";
+        } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
+          detectedType = "Aadhar";
+        } else if (mobileNumber.length == 11) {
+          detectedType = "Ben_id";
+        } else {
+          // Default to Ben_id if format doesn't match any known pattern
+          detectedType = "Ben_id";
+        }
       // }
 
       let key = getUniqueKey();
       // Create the request data as a JSON string
       let requestData = JSON.stringify({
-        Types: type,
+        Types: detectedType,
         Values: mobileNumber,
         Token: process.env.PM_KISSAN_TOKEN,
       });
@@ -915,21 +916,21 @@ export class AppService {
       let detectedType = type;
       if (!detectedType) {
         // Comment out other cases and keep only Ben_id
-        // if (/^[6-9]\d{9}$/.test(mobileNumber)) {
-        //   detectedType = "Mobile";
+        if (/^[6-9]\d{9}$/.test(mobileNumber)) {
+          detectedType = "Mobile";
         // } else if (mobileNumber.length == 14 && /^[6-9]\d{9}$/.test(mobileNumber.substring(0, 10))) {
         //   detectedType = "MobileAadhar";
-        // } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
-        //   detectedType = "Aadhar";
-        // } else if (mobileNumber.length == 11) {
-        //   detectedType = "Ben_id";
-        // } else {
-        //   // Default to Ben_id if format doesn't match any known pattern
-        //   detectedType = "Ben_id";
-        // }
+        } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
+          detectedType = "Aadhar";
+        } else if (mobileNumber.length == 11) {
+          detectedType = "Ben_id";
+        } else {
+          // Default to Ben_id if format doesn't match any known pattern
+          detectedType = "Ben_id";
+        }
 
         // Always use Ben_id
-        detectedType = "Ben_id";
+        // detectedType = "Ben_id";
       }
 
       console.log(
@@ -1000,16 +1001,17 @@ export class AppService {
   }
 
   async handleStatus(body: any) {
-    console.log("Input body:", JSON.stringify(body, null, 2));
+    // console.log("Input body:", JSON.stringify(body, null, 2));
 
     try {
       const orderId = body.message?.order_id;
-
-      if (!orderId) {
+      const regNumber = body.message?.registration_number;
+      // const aadhaarNumber = body.message?.aadhaar_number;
+      if (!orderId && !regNumber) {
         return this.createStatusErrorResponse(
           body.context,
-          "missing_order_id",
-          "Please provide a valid order ID"
+          "missing_order_id_or_registration_number",
+          "Please provide a valid order ID or registration number"
         );
       }
 
@@ -1022,7 +1024,7 @@ export class AppService {
           return await this.handlePmfbyStatus(body, orderId);
         }
         console.log("inside handleStatus: PMKISAN otp validate and status request");
-        return await this.handleOtpValidation(body, orderId);
+        return await this.handleOtpValidation(body, orderId, regNumber);
       }
 
       // Handle other status requests if needed
@@ -1040,9 +1042,6 @@ export class AppService {
   }
 
   async handleStatusForSHC(input: any, body: any): Promise<any> {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
     // Log input for debugging (replace with proper logger in production)
 
     // Validate input and context parameters
@@ -1052,18 +1051,10 @@ export class AppService {
       !Array.isArray(input.data.getTestForAuthUser) ||
       input.data.getTestForAuthUser.length === 0
     ) {
-      const error = new HttpException(
+      throw new HttpException(
         "Invalid input: data.getTestForAuthUser must be a non-empty array",
         HttpStatus.BAD_REQUEST
       );
-      
-      // Log telemetry on validation error
-      startTelemetry(body, {
-        error: error.message,
-        code: 'BAD_REQUEST'
-      }, false);
-      
-      throw error;
     }
 
     // Parameter mapping for standardized codes
@@ -1387,7 +1378,7 @@ export class AppService {
       })
       .filter((item: any) => item !== null);
 
-    const finalResponse = {
+    return {
       context: {
         domain: body?.context?.domain,
         location: { country: { name: "IND" } },
@@ -1433,15 +1424,9 @@ export class AppService {
         },
       },
     };
-    
-    // Log telemetry after successful response
-    startTelemetry(body, finalResponse, true);
-    return finalResponse;
   }
 
   async fetchAndMapSoilHealthCard(body): Promise<any> {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
     // Step 1: Get access token
@@ -1514,33 +1499,15 @@ export class AppService {
       console.log("api response ----> ", soilHealthResponse.data);
       const soilHealthData = soilHealthResponse.data;
       if (!soilHealthData?.data?.getTestForAuthUser) {
-        const error = new Error("No soil health data found");
-        
-        // Log telemetry on no data error
-        startTelemetry(body, {
-          error: error.message,
-          code: 'NO_DATA_FOUND'
-        }, false);
-        
-        throw error;
+        throw new Error("No soil health data found");
       }
 
-      // Log telemetry after successful response
-      startTelemetry(body, soilHealthData, true);
-      
       return soilHealthData;
     } catch (error) {
       console.error(
         "Soil health API error:",
         error.response?.data || error.message
       );
-      
-      // Log telemetry on API error
-      startTelemetry(body, {
-        error: error.message || 'Soil health API call failed',
-        code: error.response?.status || 'INTERNAL_SERVER_ERROR'
-      }, false);
-      
       throw new HttpException(
         `Soil health API call failed: ${error.message}`,
         error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
@@ -1548,41 +1515,49 @@ export class AppService {
     }
   }
 
-  private async handleOtpValidation(body: any, orderId: string) {
+  private async handleOtpValidation(body: any, orderId: string, regNumber: string) {
     try {
-      const storedData = this.tempOTPStore;
+      // const storedData = this.tempOTPStore;
 
-      if (!storedData?.mobileNumber) {
-        return this.createStatusErrorResponse(
-          body.context,
-          "invalid_otp",
-          "The OTP you entered is either incorrect, expired, or already used. Please request a new OTP and try again."
-        );
-      }
+      // if (!storedData?.mobileNumber) {
+      //   return this.createStatusErrorResponse(
+      //     body.context,
+      //     "invalid_otp",
+      //     "The OTP you entered is either incorrect, expired, or already used. Please request a new OTP and try again."
+      //   );
+      // }
 
+
+      // TODO: comment for now implement OTP later
       // Verify OTP
-      const verifyResponse = await this.verifyOTP(
-        storedData.mobileNumber,
-        orderId
-      );
+      // const verifyResponse = await this.verifyOTP(
+      //   regNumber,
+      //   orderId
+      // );
 
-      if (verifyResponse.status !== "OK") {
-        return this.createStatusErrorResponse(
-          body.context,
-          "invalid_otp",
-          "Invalid or expired OTP. Please try again."
-        );
-      }
+      // if (verifyResponse.status !== "OK") {
+      //   return this.createStatusErrorResponse(
+      //     body.context,
+      //     "invalid_otp",
+      //     "Invalid or expired OTP. Please try again."
+      //   );
+      // }
 
-      console.log("✅ OTP validation successful!");
-
+      // console.log("✅ OTP validation successful!");
+      console.log("✅ OTP IS SKIPPED!");
       // Clear OTP after successful validation
-      this.clearTempOTPStore();
+      // this.clearTempOTPStore();
 
       // Fetch user data after successful OTP verification
       try {
+        // const context = {
+        //   userAadhaarNumber: storedData.identifier || storedData.mobileNumber,
+        //   lastAadhaarDigits: "",
+        //   queryType: "status",
+        // };
+
         const context = {
-          userAadhaarNumber: storedData.identifier || storedData.mobileNumber,
+          userAadhaarNumber: regNumber,
           lastAadhaarDigits: "",
           queryType: "status",
         };
@@ -1591,7 +1566,7 @@ export class AppService {
         return this.createSuccessResponse(
           body.context,
           orderId,
-          storedData.mobileNumber,
+          regNumber,
           userDataResponse
         );
       } catch (fetchError) {
@@ -1599,7 +1574,7 @@ export class AppService {
         return this.createFetchErrorResponse(
           body.context,
           orderId,
-          storedData.mobileNumber,
+          regNumber,
           fetchError
         );
       }
@@ -1965,13 +1940,11 @@ export class AppService {
       return false;
     }
   }
+
   async handlePmKisanSearch(body: {
     context: components["schemas"]["Context"];
     message: { intent: components["schemas"]["Intent"] };
   }) {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
     const intent: any = body.message.intent;
 
     // destructuring the intent
@@ -2046,7 +2019,7 @@ export class AppService {
 
       // const icarResponse: any = resp.data.icar_.Content;
       const icarResponse: any = process.env.NODE_ENV === 'dev' ? resp.data.icar_.Content : resp.data.Content;
-      console.log("icarResponse=======>>>> ", JSON.stringify(icarResponse, null, 2));
+      // console.log("icarResponse=======>>>> ", JSON.stringify(icarResponse, null, 2));
       for (let item of icarResponse) {
         if (item.icon) {
           if (!this.isValidUrl(item.icon)) {
@@ -2065,22 +2038,15 @@ export class AppService {
         },
       };
 
-      // Log telemetry after successful response
-      startTelemetry(body, courseData, true);
 
       return courseData;
     } catch (err) {
-      // Log telemetry on error
-      startTelemetry(body, { 
-        error: err?.message || 'PM-Kisan search failed',
-        code: err?.code || 'ERROR'
-      }, false);
-      
       throw new InternalServerErrorException(err.message, {
         cause: err,
       });
     }
   }
+
   async handlePmkisanInit(body: any) {
     // Extract registration number from customer tags
     const customerTags =
@@ -2104,16 +2070,17 @@ export class AppService {
 
     try {
       // Generate and store OTP using registration number
-      const otpResponse = await this.sendOTP(registrationNumber);
+      const otpResponse = await this.sendOTP(registrationNumber, "");
 
       if (otpResponse.status === "OK") {
-        // Store registration number for later OTP verification
-        this.tempOTPStore = {
-          otp: null,
-          identifier: registrationNumber,
-          mobileNumber: registrationNumber,
-          timestamp: new Date().toISOString(),
-        };
+        // Store registration number for later OTP verification : comment for now implement OTP later
+        // this.tempOTPStore = {
+        //   otp: null,
+        //   identifier: registrationNumber,
+        //   mobileNumber: registrationNumber,
+        //   timestamp: new Date().toISOString(),
+        // };
+
         // Build status message
         let otpMessage =
           "Request for OTP is sent. Please enter the OTP when received and Submit.";
@@ -2318,10 +2285,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         if (res.d && res.d.output) {
           let decryptedData: any = await decryptRequest(res.d.output, key);
           console.log("Response of getUserData", res);
-          //console.log("decrypted data(from getUserData): ", decryptedData);
+          console.log("decrypted data(from getUserData): ", decryptedData);
 
           try {
             res.d.output = JSON.parse(decryptedData);
+            
             res["status"] = res.d.output.Rsponce != "False" ? "OK" : "NOT_OK";
           } catch (parseError) {
             console.error("Error parsing decrypted data:", parseError);
@@ -2552,9 +2520,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
   }
 
   public async handlePmfbyInit(body: any) {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
     const fulfillment = body?.message?.order?.fulfillments?.[0];
     const tags = fulfillment?.customer?.person?.tags || [];
     const contact = fulfillment?.customer?.contact || {};
@@ -2578,7 +2543,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     });
 
     if (!requestType || !phone) {
-      const errorResponse = {
+      return {
         ...baseResponse(),
         message: this.buildPmfbyOnInitMessage(
           body,
@@ -2589,10 +2554,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             : "Phone number is required for PMFBY OTP flow"
         ),
       };
-      
-      // Log telemetry for validation error
-      startTelemetry(body, errorResponse, false);
-      return errorResponse;
     }
 
     const phoneStr = String(phone).trim();
@@ -2603,7 +2564,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       try {
         const result = await this.pmfbyService.getOtp(phoneStr);
         if (transactionId) this.pmfbyOtpTransactionStore.set(transactionId, phoneStr);
-        const successResponse = {
+        return {
           ...baseResponse(),
           message: this.buildPmfbyOnInitMessage(
             body,
@@ -2612,17 +2573,13 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             result.message ?? "OTP sent successfully"
           ),
         };
-        
-        // Log telemetry after successful OTP send
-        startTelemetry(body, successResponse, true);
-        return successResponse;
       } catch (err: any) {
         const res = err?.getResponse?.() ?? err?.response?.data;
         const msg =
           (typeof res === "object" && res?.message) ||
           err?.message ||
           "Failed to send OTP";
-        const errorResponse = {
+        return {
           ...baseResponse(),
           message: this.buildPmfbyOnInitMessage(
             body,
@@ -2631,19 +2588,12 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             msg
           ),
         };
-        
-        // Log telemetry on OTP send error
-        startTelemetry(body, { 
-          error: msg,
-          code: err?.code || 'ERROR'
-        }, false);
-        return errorResponse;
       }
     }
 
     // verify_otp is no longer supported on init; use POST /mobility/status
     if (requestTypeLower === "verify_otp") {
-      const errorResponse = {
+      return {
         ...baseResponse(),
         message: this.buildPmfbyOnInitMessage(
           body,
@@ -2652,13 +2602,9 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           "OTP verification and policy/claim status are done via POST /mobility/status. Send context.transaction_id (same as get_otp), order_id = OTP, and fulfillment tags: inquiry_type (policy_status or claim_status), season, year, phone_number."
         ),
       };
-      
-      // Log telemetry for invalid request type
-      startTelemetry(body, errorResponse, false);
-      return errorResponse;
     }
 
-    const invalidTypeResponse = {
+    return {
       ...baseResponse(),
       message: this.buildPmfbyOnInitMessage(
         body,
@@ -2667,10 +2613,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         "request_type must be get_otp"
       ),
     };
-    
-    // Log telemetry for invalid request type
-    startTelemetry(body, invalidTypeResponse, false);
-    return invalidTypeResponse;
 
     // ---------- COMMENTED OUT: previous PMFBY init (inquiryType / season / year / farmerId / policy or claim status) ----------
     // const inquiryType =
@@ -2696,25 +2638,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     message: { intent: components["schemas"]["Intent"] };
   }) {
     console.log("Weather forecast search initiated");
-    
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
-    try {
-      const response = await this.weatherForecastService.weatherforecastSearch(body);
-      
-      // Log telemetry after successful response
-      startTelemetry(body, response, true);
-      
-      return response;
-    } catch (error) {
-      // Log telemetry on error
-      startTelemetry(body, { 
-        error: error?.message || 'Weather forecast search failed',
-        code: error?.code || 'ERROR'
-      }, false);
-      throw error;
-    }
+    return this.weatherForecastService.weatherforecastSearch(body);
   }
 
 
@@ -2723,25 +2647,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     message: { intent: components["schemas"]["Intent"] };
   }) {
     console.log("Mausamgram Weather forecast search initiated");
-    
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
-    try {
-      const response = await this.weatherForecastService.mausamgramWeatherforecastSearch(body);
-      
-      // Log telemetry after successful response
-      startTelemetry(body, response, true);
-      
-      return response;
-    } catch (error) {
-      // Log telemetry on error
-      startTelemetry(body, { 
-        error: error?.message || 'Mausamgram weather forecast search failed',
-        code: error?.code || 'ERROR'
-      }, false);
-      throw error;
-    }
+    return this.weatherForecastService.mausamgramWeatherforecastSearch(body);
   }
 
 
@@ -2750,9 +2656,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
    * Supports both search payload (message.fulfillments) and order-style (message.order.fulfillments).
    */
   async handlePmfbySearch(body: any) {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
     console.log("[PMFBY Search] Step 0: Request received", {
       transaction_id: body?.context?.transaction_id,
       message_id: body?.context?.message_id,
@@ -2796,16 +2699,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         has_transaction_id: !!transactionId,
         is_verified: transactionId ? this.pmfbyVerifiedTransactions.has(transactionId) : false,
       });
-      
-      const errorResponse = buildSearchError(
+      return buildSearchError(
         "otp_not_verified",
         "Verification Required",
         transactionMismatchMessage
       );
-      
-      // Log telemetry for verification error
-      startTelemetry(body, errorResponse, false);
-      return errorResponse;
     }
     console.log("[PMFBY Search] Step 1 OK: Transaction verified");
 
@@ -2855,16 +2753,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         has_season: !!season,
         has_year: !!year,
       });
-      
-      const errorResponse = buildSearchError(
+      return buildSearchError(
         "missing_input",
         "Missing Input",
         `${!inquiryType ? "inquiryType" : !season ? "season" : "year"} is required for PMFBY service`
       );
-      
-      // Log telemetry for missing fields error
-      startTelemetry(body, errorResponse, false);
-      return errorResponse;
     }
     console.log("[PMFBY Search] Step 2 OK: All required fields present");
 
@@ -2873,16 +2766,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     console.log("[PMFBY Search] Step 3: Farmer ID result", { farmerId: farmerId || "(not found)" });
     if (!farmerId) {
       console.log("[PMFBY Search] Step 3 FAILED: Farmer ID not found");
-      
-      const errorResponse = buildSearchError(
+      return buildSearchError(
         "farmer_id_not_found",
         "Error",
         "Farmer ID not found for the provided mobile number"
       );
-      
-      // Log telemetry for farmer ID not found
-      startTelemetry(body, errorResponse, false);
-      return errorResponse;
     }
     console.log("[PMFBY Search] Step 3 OK: Farmer ID resolved");
 
@@ -2925,63 +2813,29 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         console.log("[PMFBY Search] Step 6 OK: Claim data mapped");
       } else {
         console.log("[PMFBY Search] Step 6 FAILED: Invalid inquiry_type", { inquiryType });
-        
-        const errorResponse = buildSearchError(
+        return buildSearchError(
           "invalid_inquiry_type",
           "Error",
           "inquiry_type must be policy_status or claim_status"
         );
-        
-        // Log telemetry for invalid inquiry type
-        startTelemetry(body, errorResponse, false);
-        return errorResponse;
       }
     } catch (err: any) {
       console.log("[PMFBY Search] Step 6 FAILED: PMFBY API error", { message: err?.message, stack: err?.stack?.split("\n")?.[0] });
-      
-      const errorResponse = buildSearchError(
+      return buildSearchError(
         "pmfby_error",
         "Error",
         err?.message || "Failed to fetch PMFBY data"
       );
-      
-      // Log telemetry for API error
-      startTelemetry(body, {
-        error: err?.message || "Failed to fetch PMFBY data",
-        code: err?.code || 'ERROR'
-      }, false);
-      return errorResponse;
     }
 
     console.log("[PMFBY Search] Step 7: Returning on_search catalog success");
-    const successResponse = {
+    return {
       context: baseSearchContext(),
       message: { catalog: mappedResponse },
     };
-    
-    // Log telemetry after successful response
-    startTelemetry(body, successResponse, true);
-    return successResponse;
   }
 
   async mandiSearch(body: any) {
-    // Log telemetry before processing
-    startTelemetry(body, null, true);
-    
-    try {
-      const response = await this.mandiService.mandiSearch(body);
-      
-      // Log telemetry after successful response
-      startTelemetry(body, response, true);
-      
-      return response;
-    } catch (error) {
-      // Log telemetry on error
-      startTelemetry(body, { 
-        error: error?.message || 'Mandi search failed',
-        code: error?.code || 'ERROR'
-      }, false);
-      throw error;
-    }
+    return this.mandiService.mandiSearch(body);
   }
 }

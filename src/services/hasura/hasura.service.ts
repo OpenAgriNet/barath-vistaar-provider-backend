@@ -1915,7 +1915,7 @@ export class HasuraService {
       }`;
     }
 
-    console.log("gqlQuery", gqlQuery);
+    // console.log("gqlQuery", gqlQuery);
     try {
       const response = await this.queryDb(gqlQuery);
       return response;
