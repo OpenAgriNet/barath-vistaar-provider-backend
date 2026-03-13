@@ -1006,7 +1006,7 @@ export class AppService {
     try {
       const orderId = body.message?.order_id;
       const regNumber = body.message?.registration_number;
-      // const aadhaarNumber = body.message?.aadhaar_number;
+      const phoneNumber = body.message?.phone_number;
       if (!orderId && !regNumber) {
         return this.createStatusErrorResponse(
           body.context,
@@ -1024,7 +1024,7 @@ export class AppService {
           return await this.handlePmfbyStatus(body, orderId);
         }
         console.log("inside handleStatus: PMKISAN otp validate and status request");
-        return await this.handleOtpValidation(body, orderId, regNumber);
+        return await this.handleOtpValidation(body, orderId, regNumber, phoneNumber);
       }
 
       // Handle other status requests if needed
@@ -1515,7 +1515,7 @@ export class AppService {
     }
   }
 
-  private async handleOtpValidation(body: any, orderId: string, regNumber: string) {
+  private async handleOtpValidation(body: any, orderId: string, regNumber: string, phoneNumber: string) {
     try {
       // const storedData = this.tempOTPStore;
 
@@ -1557,7 +1557,7 @@ export class AppService {
         // };
 
         const context = {
-          userAadhaarNumber: regNumber,
+          userAadhaarNumber: regNumber || phoneNumber || "",
           lastAadhaarDigits: "",
           queryType: "status",
         };
