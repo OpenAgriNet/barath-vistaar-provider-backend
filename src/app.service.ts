@@ -914,7 +914,7 @@ export class AppService {
     try {
       // Auto-detect the type if not provided
       let detectedType = type;
-      if (!detectedType) {
+      // if (!detectedType) {
         // Comment out other cases and keep only Ben_id
         if (/^[6-9]\d{9}$/.test(mobileNumber)) {
           detectedType = "Mobile";
@@ -931,7 +931,7 @@ export class AppService {
 
         // Always use Ben_id
         // detectedType = "Ben_id";
-      }
+      // }
 
       console.log(
         `Detected type for verification ${mobileNumber}: ${detectedType}`
@@ -947,7 +947,7 @@ export class AppService {
       let data = {
         EncryptedRequest: `${encrypted_text}@${key}`,
       };
-      console.log("(inside verifyOTP)the data in the data var is : ", data);
+      // console.log("(inside verifyOTP)the data in the data var is : ", data);
       let config = {
         method: "post",
         maxBodyLength: Infinity,
@@ -959,11 +959,11 @@ export class AppService {
       };
 
       let response: any = await axios.request(config);
-      console.log("verifyOTP", response.status);
+      // console.log("verifyOTP", response.status);
       if (response.status >= 200 && response.status < 300) {
         response = await response.data;
         let decryptedData: any = await decryptRequest(response.d.output, key);
-        console.log("Response of VerifyOTP", response);
+        // console.log("Response of VerifyOTP", response);
         console.log("Response from decryptedData(verifyOTP)", decryptedData);
 
         try {
@@ -2346,31 +2346,31 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     let type = "Ben_id";
 
     // Comment out other cases and keep only Ben_id
-    // if (/^[6-9]\d{9}$/.test(userIdentifier)) {
-    //   type = "Mobile";
-    //   res = await this.getUserData(userIdentifier, "Mobile");
+    if (/^[6-9]\d{9}$/.test(userIdentifier)) {
+      type = "Mobile";
+      res = await this.getUserData(userIdentifier, "Mobile");
     // } else if (
     //   userIdentifier.length == 14 &&
     //   /^[6-9]\d{9}$/.test(userIdentifier.substring(0, 10))
     // ) {
     //   type = "MobileAadhar";
     //   res = await this.getUserData(userIdentifier, "MobileAadhar");
-    // } else if (userIdentifier.length == 12 && /^\d+$/.test(userIdentifier)) {
-    //   type = "Aadhar";
-    //   res = await this.getUserData(userIdentifier, "Aadhar");
-    // } else if (userIdentifier.length == 11) {
-    //   type = "Ben_id";
-    //   res = await this.getUserData(userIdentifier, "Ben_id");
-    // } else {
-    //   return Promise.reject(
-    //     new Error(
-    //       "Please enter a valid Beneficiary ID/Aadhaar Number/Phone number"
-    //     )
-    //   );
-    // }
+    } else if (userIdentifier.length == 12 && /^\d+$/.test(userIdentifier)) {
+      type = "Aadhar";
+      res = await this.getUserData(userIdentifier, "Aadhar");
+    } else if (userIdentifier.length == 11) {
+      type = "Ben_id";
+      res = await this.getUserData(userIdentifier, "Ben_id");
+    } else {
+      return Promise.reject(
+        new Error(
+          "Please enter a valid Beneficiary ID/Aadhaar Number/Phone number"
+        )
+      );
+    }
 
     // Always use Ben_id
-    res = await this.getUserData(userIdentifier, "Ben_id");
+    // res = await this.getUserData(userIdentifier, type);
 
     if (res.d.output.Message == "Unable to get user details") {
       // Instead of throwing an error, return a formatted error message
