@@ -1548,8 +1548,8 @@ export class AppService {
         );
       }
 
-      // console.log("✅ OTP validation successful!");
-      console.log("✅ OTP IS SKIPPED!");
+      console.log("✅ OTP validation successful!");
+      // console.log("✅ OTP IS SKIPPED!");
       // Clear OTP after successful validation
       // this.clearTempOTPStore();
 
