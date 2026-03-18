@@ -937,7 +937,12 @@ export class AppService {
         `Detected type for verification ${mobileNumber}: ${detectedType}`
       );
 
-      let requestData = `{\"Types\":\"${detectedType}\",\"Values\":\"${mobileNumber}\",\"OTP\":\"${otp}\",\"Token\":\"${process.env.PM_KISSAN_TOKEN}\"}`;
+      const requestData = JSON.stringify({
+        Types: detectedType,
+        Values: String(mobileNumber),
+        OTP: String(otp),
+        Token: String(process.env.PM_KISSAN_TOKEN),
+      });
       console.log("Request data: ", requestData);
       let key = getUniqueKey();
       let encrypted_text = await encrypt(requestData, key); //without @
@@ -947,7 +952,7 @@ export class AppService {
       let data = {
         EncryptedRequest: `${encrypted_text}@${key}`,
       };
-      // console.log("(inside verifyOTP)the data in the data var is : ", data);
+      console.log("(inside verifyOTP)the data in the data var is : ", JSON.stringify(data, null, 2));
       let config = {
         method: "post",
         maxBodyLength: Infinity,
@@ -1530,18 +1535,18 @@ export class AppService {
 
       // TODO: comment for now implement OTP later
       // Verify OTP
-      // const verifyResponse = await this.verifyOTP(
-      //   regNumber,
-      //   orderId
-      // );
+      const verifyResponse = await this.verifyOTP(
+        regNumber,
+        orderId
+      );
 
-      // if (verifyResponse.status !== "OK") {
-      //   return this.createStatusErrorResponse(
-      //     body.context,
-      //     "invalid_otp",
-      //     "Invalid or expired OTP. Please try again."
-      //   );
-      // }
+      if (verifyResponse.status !== "OK") {
+        return this.createStatusErrorResponse(
+          body.context,
+          "invalid_otp",
+          "Invalid or expired OTP. Please try again."
+        );
+      }
 
       // console.log("✅ OTP validation successful!");
       console.log("✅ OTP IS SKIPPED!");
