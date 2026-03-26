@@ -51,3 +51,14 @@ For branches that exist among `main`, `master`, `mh-main`, `bh-main`:
 - branch deletions disabled
 - admin enforcement enabled
 - required status check: `PR Governance Gate / governance`
+
+## Ruleset Activation Record (2026-03-26)
+
+- Ruleset: `OpenAgriNet Governance Core Branches` (ID: `14361227`)
+- Enforcement: `active`
+- Branch scope: `main`, `master`, `mh-main`, `bh-main`
+- Bypass policy: `Organization owners only`
+
+Referenced merged governance PRs:
+- https://github.com/OpenAgriNet/barath-vistaar-provider-backend/pull/2
+- https://github.com/OpenAgriNet/barath-vistaar-provider-backend/pull/1
