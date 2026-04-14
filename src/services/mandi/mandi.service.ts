@@ -32,26 +32,67 @@ export class MandiService {
    */
   async fetchAgmarknetVistaar(params: AgmarknetVistaarParams): Promise<any> {
     const url = `${this.baseUrl}/v1/fetch-agmarknet-vistaar`;
-    const query = new URLSearchParams({
-      token: this.token || "",
-      statecode: params.statecode,
-      from_date: params.from_date,
-      to_date: params.to_date,
-      commoditycode: params.commoditycode,
-      districtcode: params.districtcode,
-      // marketcode: params.marketcode,
-    }).toString();
-    this.logger.log(`Mandi API: GET ${url}?${query}`);
+    const buildQuery = (includeMarketcode: boolean): string => {
+      const queryParams = new URLSearchParams({
+        token: this.token || "",
+        statecode: params.statecode,
+        from_date: params.from_date,
+        to_date: params.to_date,
+        commoditycode: params.commoditycode,
+        districtcode: params.districtcode,
+      });
+      if (includeMarketcode && params.marketcode) {
+        queryParams.set("marketcode", params.marketcode);
+      }
+      return queryParams.toString();
+    };
+
+    const requestKey = this.getApiRequestKey(params);
+    const query = buildQuery(true);
+    this.logger.log(`MANDI_API_REQUEST key=${requestKey} method=GET url=${url}?${query}`);
     try {
       const response = await axios.get(`${url}?${query}`, { timeout: 15000 });
-      return response.data;
+      let data = response.data;
+      let records = this.normalizeApiRecords(data);
+      const sample = records[0] ? JSON.stringify(records[0]).slice(0, 500) : "";
+      this.logger.log(
+        `MANDI_API_RESPONSE key=${requestKey} status=${response.status} records=${records.length} sample=${sample || "none"}`
+      );
+
+      // If marketcode-level query returns empty, retry without marketcode to avoid false negatives.
+      if (records.length === 0 && params.marketcode) {
+        const fallbackQuery = buildQuery(false);
+        this.logger.log(
+          `MANDI_API_FALLBACK key=${requestKey} reason=empty_records retry_without=marketcode url=${url}?${fallbackQuery}`
+        );
+        const fallbackResponse = await axios.get(`${url}?${fallbackQuery}`, { timeout: 15000 });
+        data = fallbackResponse.data;
+        records = this.normalizeApiRecords(data);
+        const fallbackSample = records[0] ? JSON.stringify(records[0]).slice(0, 500) : "";
+        this.logger.log(
+          `MANDI_API_FALLBACK_RESPONSE key=${requestKey} status=${fallbackResponse.status} records=${records.length} sample=${fallbackSample || "none"}`
+        );
+      }
+
+      return data;
     } catch (err: any) {
       const status = err?.response?.status;
       const body = err?.response?.data;
       const msg = typeof body === "object" ? JSON.stringify(body) : body ?? err.message;
-      this.logger.warn(`Mandi API ${status}: ${msg}`);
+      this.logger.warn(`MANDI_API_ERROR key=${requestKey} status=${status ?? "unknown"} message=${msg}`);
       throw err;
     }
+  }
+
+  private getApiRequestKey(params: AgmarknetVistaarParams): string {
+    return [
+      `state=${params.statecode || "NA"}`,
+      `district=${params.districtcode || "NA"}`,
+      `market=${params.marketcode || "NA"}`,
+      `commodity=${params.commoditycode || "NA"}`,
+      `from=${params.from_date || "NA"}`,
+      `to=${params.to_date || "NA"}`,
+    ].join("|");
   }
 
   /**
@@ -74,6 +115,8 @@ export class MandiService {
     if (Array.isArray(apiData)) return apiData;
     if (apiData?.data && Array.isArray(apiData.data)) return apiData.data;
     if (apiData?.records && Array.isArray(apiData.records)) return apiData.records;
+    if (apiData?.result && Array.isArray(apiData.result)) return apiData.result;
+    if (apiData?.results && Array.isArray(apiData.results)) return apiData.results;
     if (apiData && typeof apiData === "object") return [apiData];
     return [];
   }
@@ -231,9 +274,13 @@ export class MandiService {
 
     try {
       const rows = await this.getMandiMasterData(lat, lon);
-      this.logger.log(`Mandi DB: found ${rows.length} row(s) for lat=${lat}, lon=${lon}, commoditycode=${commoditycodeStr}`);
+      this.logger.log(
+        `MANDI_DB_ROWS lat=${lat} lon=${lon} commodity=${commoditycodeStr} rows=${rows.length}`
+      );
 
       const results: Array<{ mandi: MandiMasterRow; api: any }> = [];
+      const uniqueParamsByKey = new Map<string, { params: AgmarknetVistaarParams; mandi: MandiMasterRow }>();
+
       for (const row of rows) {
         const params: AgmarknetVistaarParams = {
           statecode: row.statecode,
@@ -243,11 +290,22 @@ export class MandiService {
           districtcode: row.districtcode ?? "",
           marketcode: row.marketcode,
         };
+        const key = this.getApiRequestKey(params);
+        if (!uniqueParamsByKey.has(key)) {
+          uniqueParamsByKey.set(key, { params, mandi: row });
+        }
+      }
+
+      this.logger.log(
+        `MANDI_API_DEDUP total_rows=${rows.length} unique_requests=${uniqueParamsByKey.size}`
+      );
+
+      for (const [key, entry] of uniqueParamsByKey.entries()) {
         try {
-          const apiData = await this.fetchAgmarknetVistaar(params);
-          results.push({ mandi: row, api: apiData });
+          const apiData = await this.fetchAgmarknetVistaar(entry.params);
+          results.push({ mandi: entry.mandi, api: apiData });
         } catch (err) {
-          this.logger.warn(`Mandi API failed for ${row.marketcode}: ${(err as Error).message}`);
+          this.logger.warn(`MANDI_API_CALL_FAILED key=${key} message=${(err as Error).message}`);
         }
       }
 

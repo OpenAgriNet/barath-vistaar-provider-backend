@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import { Pool, QueryResult } from "pg";
+import { Pool, PoolConfig, QueryResult } from "pg";
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -7,7 +7,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     private pool: Pool;
 
     constructor() {
-        this.pool = new Pool({
+        const sslMode = (process.env.IMD_DB_SSLMODE || process.env.WEATHER_DB_SSLMODE || "").toLowerCase();
+        const sslEnabledFromMode = ["require", "verify-ca", "verify-full", "no-verify"].includes(sslMode);
+        const sslEnabled = this.parseBoolean(process.env.IMD_DB_SSL || process.env.WEATHER_DB_SSL, sslEnabledFromMode);
+        const rejectUnauthorized = this.parseBoolean(
+            process.env.IMD_DB_SSL_REJECT_UNAUTHORIZED || process.env.WEATHER_DB_SSL_REJECT_UNAUTHORIZED,
+            false
+        );
+
+        const poolConfig: PoolConfig = {
             host: process.env.IMD_DB_HOST || process.env.WEATHER_DB_HOST,
             port: parseInt(process.env.IMD_DB_PORT || process.env.WEATHER_DB_PORT || "5432"),
             database: process.env.IMD_DB_NAME || process.env.WEATHER_DB_NAME,
@@ -16,7 +24,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             max: 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 2000,
-        });
+        };
+
+        if (sslEnabled) {
+            poolConfig.ssl = { rejectUnauthorized };
+        }
+
+        this.pool = new Pool(poolConfig);
+    }
+
+    private parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
+        if (value === undefined) {
+            return defaultValue;
+        }
+        return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
 
     async onModuleInit() {
