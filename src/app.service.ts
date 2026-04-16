@@ -3090,4 +3090,238 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       },
     };
   }
+
+  async fetchGFRRecommendation(body: any): Promise<any> {
+    console.log("INSIDE fetchGFRRecommendation...");
+
+    const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
+
+    const baseContext = () => ({
+      ...body.context,
+      action: "on_search",
+      timestamp: new Date().toISOString(),
+    });
+
+    const buildError = (code: string, message: string) => ({
+      context: baseContext(),
+      message: {
+        catalog: {
+          descriptor: { name: "GFR Crop Recommendation" },
+          providers: [
+            {
+              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              descriptor: { name: "GFR Crop Recommendation" },
+              items: [
+                {
+                  id: "error",
+                  descriptor: { name: "Error", short_desc: message },
+                  tags: [
+                    {
+                      descriptor: { code },
+                      list: [
+                        { descriptor: { code: "message" }, value: message },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    // Extract tags from fulfillments
+    const tags =
+      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+    const getTagValue = (code: string) =>
+      tags.find((t: any) => t?.descriptor?.code === code)?.value;
+
+    const phoneNo = getTagValue("phoneNo");
+    const cycle = getTagValue("cycle");
+
+    if (!phoneNo) {
+      return buildError("missing_input", "Missing required tag: phoneNo");
+    }
+
+    if (!cycle) {
+      return buildError("missing_input", "Missing required tag: cycle");
+    }
+
+    // Step 1: Get access token
+    let accessToken: string;
+    try {
+      const tokenPayload = {
+        query:
+          "query Query($refreshToken: String!) { generateAccessToken(refreshToken: $refreshToken) }",
+        variables: {
+          refreshToken:
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJSZWZyZXNoVG9rZW4iLCJhdXRob3JpdHkiOiIiLCJwYXJlbnQiOiIiLCJ0eXBlIjoiRXh0ZXJuYWxVc2VyIiwic3ViIjoiNjc3NzgwZWYzNzkyZjZmOWQxMzExOWJkIiwidXNlcnN0YXR1cyI6IkFDVElWRSIsImlhdCI6MTczNTg4NTAzOSwiZXhwIjoxNzM2NDg5ODM5LCJhdWQiOiJzb2lsaGVhbHRoLmRhYy5nb3YuaW4iLCJpc3MiOiJzb2lsaGVhbHRoLmRhYy5nb3YuaW4iLCJqdGkiOiI0NzEzNjg3ZS1hM2NmLTRiYTUtYjk0MC0wZjFlZDliZjE4YmEifQ.rOl0BztuPnmJh53hnzr9sv3Nfj4n1qTnABpOU-1N1KA",
+        },
+      };
+      const tokenResponse = await axios.post(baseUrl, tokenPayload, {
+        headers: { "Content-Type": "application/json" },
+      });
+      accessToken = tokenResponse.data?.data?.generateAccessToken?.token;
+      console.log("GFR Recommendation accessToken--->>", accessToken);
+      if (!accessToken) {
+        return buildError("auth_error", "Failed to retrieve access token");
+      }
+    } catch (error) {
+      console.error("GFR Recommendation token error:", error.message);
+      return buildError(
+        "auth_error",
+        `Token retrieval failed: ${error.message}`,
+      );
+    }
+
+    // Step 2: Fetch soil health test data to get N, P, K, OC values
+    const shcPayload = {
+      query:
+        "query GetTestForAuthUser($computedId: String, $phone: PhoneNumber, $state: String, $district: String, $name: String, $farmer: String, $from: Datetime, $to: Datetime, $cycle: String, $locale: String, $scheme: String, $limit: Int, $skip: Int) { getTestForAuthUser(computedID: $computedId, phone: $phone, state: $state, district: $district, name: $name, farmer: $farmer, from: $from, to: $to, cycle: $cycle, scheme: $scheme, limit: $limit, skip: $skip) { id computedID cycle scheme plot { address area surveyNo } farmer { address name phone } crop location testparameters rdfValues status testCompletedAt sampleDate reportData district block village results fertilizer html(locale: $locale) uniqueID } }",
+      variables: {
+        cycle,
+        phone: phoneNo,
+        limit: 1,
+        skip: 0,
+        locale: "en",
+      },
+    };
+
+    console.log(
+      "GFR Recommendation SHC payload-->>",
+      JSON.stringify(shcPayload, null, 2),
+    );
+
+    let shcData: any;
+    try {
+      const shcResponse = await axios.post(baseUrl, shcPayload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      shcData = shcResponse.data;
+      console.log(
+        "GFR Recommendation SHC response length-->>",
+        shcData?.data?.getTestForAuthUser?.length ?? 0,
+      );
+    } catch (error) {
+      console.error("GFR Recommendation SHC API error:", error.message);
+      return buildError(
+        "api_error",
+        error.response?.data?.errors?.[0]?.message ||
+          `Failed to fetch soil health data: ${error.message}`,
+      );
+    }
+
+    const testResults = shcData?.data?.getTestForAuthUser ?? [];
+    if (!testResults.length) {
+      return buildError(
+        "no_data",
+        "No soil health test data found for the given phone number",
+      );
+    }
+
+    // Extract N, P, K, OC from the first test result
+    const firstTest = testResults[0];
+    const rdfValues = firstTest?.rdfValues ?? {};
+    const npkResults = {
+      n: rdfValues?.N ?? rdfValues?.n ?? null,
+      p: rdfValues?.P ?? rdfValues?.p ?? null,
+      k: rdfValues?.K ?? rdfValues?.k ?? null,
+      OC: rdfValues?.OC ?? null,
+    };
+
+    console.log("GFR Recommendation NPK values-->>", npkResults);
+
+    // Extract crops, stateId, naturalFarming from tags
+    const crops = getTagValue("crops") ?? [];
+    const stateId = getTagValue("stateId");
+    const naturalFarming = getTagValue("naturalFarming") ?? false;
+
+    // Step 3: Call getRecommendations with NPK values
+    const recommendationPayload = {
+      query:
+        "query GetRecommendations($state: ID!, $results: JSON!, $district: ID, $crops: [ID!], $naturalFarming: Boolean) { getRecommendations(state: $state results: $results district: $district crops: $crops naturalFarming: $naturalFarming) }",
+      variables: {
+        state: stateId,
+        results: npkResults,
+        crops,
+        naturalFarming,
+      },
+    };
+
+    console.log(
+      "GFR Recommendation payload-->>",
+      JSON.stringify(recommendationPayload, null, 2),
+    );
+
+    let recommendationData: any;
+    try {
+      const recommendationResponse = await axios.post(
+        baseUrl,
+        recommendationPayload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      recommendationData = recommendationResponse.data;
+      console.log(
+        "GFR Recommendation response-->>",
+        JSON.stringify(recommendationData, null, 2),
+      );
+    } catch (error) {
+      console.error("GFR Recommendation API error:", error.message);
+      return buildError(
+        "api_error",
+        error.response?.data?.errors?.[0]?.message ||
+          `Failed to fetch recommendations: ${error.message}`,
+      );
+    }
+
+    const recommendations =
+      recommendationData?.data?.getRecommendations ?? null;
+
+    if (!recommendations) {
+      return buildError("no_data", "No recommendations found");
+    }
+
+    // Return raw recommendations in Beckn on_search structure
+    return {
+      context: baseContext(),
+      message: {
+        catalog: {
+          descriptor: { name: "GFR Crop Recommendation" },
+          providers: [
+            {
+              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              descriptor: { name: "GFR Crop Recommendation" },
+              items: [
+                {
+                  id: "gfr-recommendation",
+                  descriptor: {
+                    name: "Crop Recommendation",
+                  },
+                  tags: [
+                    {
+                      descriptor: { code: "recommendations" },
+                      list: [
+                        {
+                          descriptor: { code: "data" },
+                          value: JSON.stringify(recommendations),
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+  }
 }

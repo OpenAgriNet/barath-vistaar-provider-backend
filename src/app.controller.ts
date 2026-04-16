@@ -102,8 +102,14 @@ export class AppController {
     ) {
       categoryType = "pmfby";
     } else if (body?.message?.order?.provider?.id === "gfr-agri") {
-      console.log("INSIDE GFR SEARCH...");
-      return this.appService.fetchGFRDetails(body);
+      const itemId = body?.message?.order?.items?.[0]?.id;
+      if (itemId === "gfr-agri-crop-recommendation") {
+        console.log("INSIDE GFR CROP RECOMMENDATION SEARCH...");
+        return this.appService.fetchGFRRecommendation(body);
+      } else {
+        console.log("INSIDE GFR CROP REGISTRY SEARCH...");
+        return this.appService.fetchGFRDetails(body);
+      }
     } else if (categoryCode === "price-discovery") {
       const itemCode =
         body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
