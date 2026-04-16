@@ -52,13 +52,17 @@ export class GfrService {
 
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
-    // Extract lat/lon from context location
-    const location = body?.context?.location;
-    const lat: number = location?.gps?.lat ?? location?.latitude ?? null;
-    const lon: number = location?.gps?.lon ?? location?.longitude ?? null;
+    // Extract lat/lon from fulfillments tags location
+    const tags =
+      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+    const locationTag = tags.find((t: any) => t?.location);
+    const lat: number = locationTag?.location?.lat ?? null;
+    const lon: number = locationTag?.location?.lon ?? null;
+
+    this.logger.log(`Extracted lat: ${lat}, lon: ${lon}`);
 
     if (!lat || !lon) {
-      this.logger.warn("No lat/lon in context, falling back to stateId tag");
+      this.logger.warn("No lat/lon in tags, falling back to stateId tag");
     }
 
     let stateId: string;
@@ -92,8 +96,6 @@ export class GfrService {
       }
     } else {
       // Fallback: use stateId from tags
-      const tags =
-        body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
       stateId = tags.find((t: any) => t?.descriptor?.code === "stateId")?.value;
 
       if (!stateId) {
