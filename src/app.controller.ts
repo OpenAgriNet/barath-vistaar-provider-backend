@@ -24,8 +24,8 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly authService: AuthService,
-    private readonly httpService: HttpService
-  ) { }
+    private readonly httpService: HttpService,
+  ) {}
 
   @Get()
   getHello(): string {
@@ -71,7 +71,8 @@ export class AppController {
 
     const categoryName = body?.message?.intent?.category?.descriptor?.name;
     console.log("categoryName", categoryName);
-    const categoryCode = body?.message?.intent?.category?.descriptor?.code?.toLowerCase();
+    const categoryCode =
+      body?.message?.intent?.category?.descriptor?.code?.toLowerCase();
     console.log("categoryCode", categoryCode);
     const categoryNameLower = categoryName?.toLowerCase();
     console.log("categoryNameLower", categoryNameLower);
@@ -84,17 +85,30 @@ export class AppController {
       categoryType = "weather-forecast";
     } else if (categoryName === "Weather-Forecast-Mausamgram") {
       categoryType = "weather-forecast-mausamgram";
-    } else if (categoryCode === "schemes-agri" || categoryNameLower === "schemes-agri") {
+    } else if (
+      categoryCode === "schemes-agri" ||
+      categoryNameLower === "schemes-agri"
+    ) {
       categoryType = "schemes-agri";
-    } else if (categoryCode === "icar-schemes" || categoryNameLower === "icar-schemes") {
+    } else if (
+      categoryCode === "icar-schemes" ||
+      categoryNameLower === "icar-schemes"
+    ) {
       categoryType = "icar-schemes";
-    } else if (categoryCode === "pmfby" || categoryNameLower === "pmfby" || categoryCode?.startsWith("pmfby")) {
+    } else if (
+      categoryCode === "pmfby" ||
+      categoryNameLower === "pmfby" ||
+      categoryCode?.startsWith("pmfby")
+    ) {
       categoryType = "pmfby";
+    } else if (body?.message?.order?.provider?.id === "gfr-agri") {
+      console.log("INSIDE GFR INIT...");
+      return this.appService.fetchGFRDetails(body);
     } else if (categoryCode === "price-discovery") {
-      const itemCode = body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
+      const itemCode =
+        body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
       categoryType = itemCode === "mandi" ? "mandi" : "unknown";
-    }
-    else {
+    } else {
       categoryType = "unknown";
     }
 
@@ -158,12 +172,12 @@ export class AppController {
         // Pass the first item to handleStatusForSHC for mapping
         return await this.appService.handleStatusForSHC(
           soilHeallthCardResponse,
-          body
+          body,
         );
       } catch (error) {
         throw new HttpException(
           `Failed to process soil health card: ${error.message}`,
-          error.status || HttpStatus.INTERNAL_SERVER_ERROR
+          error.status || HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }
     } else if (body?.message?.order) {
@@ -216,11 +230,15 @@ export class AppController {
     }
     const url = `${base.replace(/\/$/, "")}${path}`;
     const res = await firstValueFrom(
-      this.httpService.post(url, { EncryptedRequest: body.EncryptedRequest }, {
-        headers: { "Content-Type": "application/json" },
-        timeout: 15000,
-        responseType: "text",
-      }),
+      this.httpService.post(
+        url,
+        { EncryptedRequest: body.EncryptedRequest },
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 15000,
+          responseType: "text",
+        },
+      ),
     ).catch((err) => {
       const status = err.response?.status || HttpStatus.BAD_GATEWAY;
       const msg = err.response?.data ?? err.message;
@@ -239,7 +257,7 @@ export class AppController {
   submitFeedback(
     @Body("description") description: string,
     @Param("id") id: string,
-    @Request() req: any
+    @Request() req: any,
   ) {
     console.log("description", description);
     console.log("id", id);
@@ -261,7 +279,7 @@ export class AppController {
       // res.status(403).send('Access denied. This page can only be loaded within an iframe.');
       throw new HttpException(
         "Access denied. This page can only be loaded within an iframe.",
-        HttpStatus.FORBIDDEN
+        HttpStatus.FORBIDDEN,
       );
     }
   }

@@ -108,6 +108,26 @@ export class MandiService {
     }
   }
 
+  private parseDdMmYyyyToDate(dateStr: string): Date | null {
+    if (!dateStr) return null;
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return null;
+    const day = Number(parts[0]);
+    const month = Number(parts[1]);
+    const year = Number(parts[2]);
+    if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null;
+    const d = new Date(year, month - 1, day);
+    if (
+      Number.isNaN(d.getTime()) ||
+      d.getDate() !== day ||
+      d.getMonth() !== month - 1 ||
+      d.getFullYear() !== year
+    ) {
+      return null;
+    }
+    return d;
+  }
+
   /**
    * Normalize Agmarknet Vistaar API response to an array of price records.
    */
@@ -241,8 +261,8 @@ export class MandiService {
     const timeRange = stop?.time?.range;
     const startStr = timeRange?.start;
     const endStr = timeRange?.end;
-    const fromDate = startStr ? this.parseDateForApi(startStr) : "";
-    const toDate = endStr ? this.parseDateForApi(endStr) : "";
+    let fromDate = startStr ? this.parseDateForApi(startStr) : "";
+    let toDate = endStr ? this.parseDateForApi(endStr) : "";
 
     const commoditycode = stop?.commoditycode;
     const commoditycodeStr =
@@ -270,6 +290,17 @@ export class MandiService {
     if (commoditycodeStr === "") {
       this.logger.warn("Mandi search: missing required commoditycode (number) in fulfillment.stops[0]");
       return emptyCatalog();
+    }
+
+    const fromDateObj = this.parseDdMmYyyyToDate(fromDate);
+    const toDateObj = this.parseDdMmYyyyToDate(toDate);
+    if (fromDateObj && toDateObj && fromDateObj.getTime() > toDateObj.getTime()) {
+      this.logger.warn(
+        `MANDI_DATE_RANGE_SWAPPED reason=from_gt_to original_from=${fromDate} original_to=${toDate}`
+      );
+      const temp = fromDate;
+      fromDate = toDate;
+      toDate = temp;
     }
 
     try {
