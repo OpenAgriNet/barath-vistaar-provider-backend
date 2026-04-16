@@ -3308,12 +3308,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
                   tags: [
                     {
                       descriptor: { code: "recommendations" },
-                      list: [
-                        {
-                          descriptor: { code: "data" },
-                          value: JSON.stringify(recommendations),
-                        },
-                      ],
+                      display: true,
+                      list: recommendations.map((rec: any, index: number) => ({
+                        descriptor: { code: `recommendation_${index}` },
+                        value: rec,
+                      })),
                     },
                   ],
                 },
