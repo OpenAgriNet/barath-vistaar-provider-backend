@@ -2989,7 +2989,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     const gfrPayload = {
       query:
-        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state __typename } }",
+        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state { _id name code } __typename } }",
       variables: {
         state: stateId,
       },
@@ -3057,7 +3057,15 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             },
             {
               descriptor: { code: "stateId" },
-              value: crop.state ?? stateId,
+              value: crop.state?._id ?? stateId,
+            },
+            {
+              descriptor: { code: "stateName" },
+              value: crop.state?.name ?? "",
+            },
+            {
+              descriptor: { code: "stateCode" },
+              value: crop.state?.code ?? "",
             },
           ],
         },

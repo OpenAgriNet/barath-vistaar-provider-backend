@@ -102,8 +102,25 @@ export class AppController {
     ) {
       categoryType = "pmfby";
     } else if (body?.message?.order?.provider?.id === "gfr-agri") {
-      console.log("INSIDE GFR INIT...");
-      return this.appService.fetchGFRDetails(body);
+      console.log("INSIDE GFR SEARCH...");
+      // Respond with ACK immediately, then post on_search to bap_uri asynchronously
+      this.appService.fetchGFRDetails(body).then((onSearchResponse) => {
+        const bapUri = body?.context?.bap_uri;
+        if (bapUri) {
+          const axios = require("axios");
+          axios
+            .post(`${bapUri}/on_search`, onSearchResponse, {
+              headers: { "Content-Type": "application/json" },
+            })
+            .then(() => console.log("GFR on_search posted to bap_uri"))
+            .catch((err: any) =>
+              console.error("GFR on_search callback failed:", err.message),
+            );
+        }
+      });
+      return {
+        message: { ack: { status: "ACK" } },
+      };
     } else if (categoryCode === "price-discovery") {
       const itemCode =
         body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
