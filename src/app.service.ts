@@ -2939,7 +2939,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     console.log("INSIDE fetchGFRDetails...");
 
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
-
+    
     const baseContext = () => ({
       ...body.context,
       action: "on_search",
@@ -3008,6 +3008,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       gfrData = response.data;
       console.log("GFR API response-->>", JSON.stringify(gfrData, null, 2));
     } catch (error) {
+      console.log('print error for gfr: ', error);
       console.error("GFR API error:", error.message);
       console.error(
         "GFR API error response:",
