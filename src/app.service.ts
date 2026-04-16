@@ -2940,6 +2940,41 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
+    const baseContext = () => ({
+      ...body.context,
+      action: "on_search",
+      timestamp: new Date().toISOString(),
+    });
+
+    const buildError = (code: string, message: string) => ({
+      context: baseContext(),
+      message: {
+        catalog: {
+          descriptor: { name: "GFR Crop Registry" },
+          providers: [
+            {
+              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              descriptor: { name: "GFR Crop Registry" },
+              items: [
+                {
+                  id: "error",
+                  descriptor: { name: "Error", short_desc: message },
+                  tags: [
+                    {
+                      descriptor: { code },
+                      list: [
+                        { descriptor: { code: "message" }, value: message },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
     // Extract stateId tag from fulfillments
     const tags =
       body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
@@ -2949,30 +2984,12 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     const stateId = getTagValue("stateId");
 
     if (!stateId) {
-      throw new HttpException(
-        "Missing required tag: stateId",
-        HttpStatus.BAD_REQUEST,
-      );
+      return buildError("missing_input", "Missing required tag: stateId");
     }
 
     const gfrPayload = {
-      query: `query Query($state: ID) {
-        getCropRegistries(state: $state) {
-          id
-          name
-          variety
-          irrigationType
-          season
-          splitdose
-          GFRavailable
-          combinedName
-          state {
-            _id
-            name
-            code
-          }
-        }
-      }`,
+      query:
+        "query Query($state: ID) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state { _id name code } } }",
       variables: {
         state: stateId,
       },
@@ -2992,18 +3009,23 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       console.log("GFR API response-->>", JSON.stringify(gfrData, null, 2));
     } catch (error) {
       console.error("GFR API error:", error.message);
-      throw new HttpException(
-        `Failed to fetch GFR details: ${error.message}`,
-        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      console.error(
+        "GFR API error response:",
+        JSON.stringify(error.response?.data, null, 2),
+      );
+      return buildError(
+        "api_error",
+        error.response?.data?.errors?.[0]?.message ||
+          `Failed to fetch GFR details: ${error.message}`,
       );
     }
 
     const cropRegistries: any[] = gfrData?.data?.getCropRegistries ?? [];
 
     if (!cropRegistries.length) {
-      throw new HttpException(
+      return buildError(
+        "no_data",
         "No crop registry data found for the given state",
-        HttpStatus.NOT_FOUND,
       );
     }
 
@@ -3050,21 +3072,17 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     }));
 
     return {
-      context: {
-        ...body.context,
-        action: "on_init",
-        timestamp: new Date().toISOString(),
-      },
+      context: baseContext(),
       message: {
-        order: {
-          provider: {
-            id: body?.message?.order?.provider?.id,
-            descriptor: {
-              name: "GFR Crop Registry",
+        catalog: {
+          descriptor: { name: "GFR Crop Registry" },
+          providers: [
+            {
+              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              descriptor: { name: "GFR Crop Registry" },
+              items,
             },
-          },
-          items,
-          fulfillments: body?.message?.order?.fulfillments,
+          ],
         },
       },
     };
