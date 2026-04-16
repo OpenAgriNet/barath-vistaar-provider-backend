@@ -108,11 +108,13 @@ export class GfrService {
     }
 
     // Step 2: Call getCropRegistries with the resolved stateId
-    const gfrPayload = {
-      query:
-        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state { _id name code } __typename } }",
-      variables: { state: stateId },
-    };
+    const gfrPayload = 
+    {
+      "query": "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { name variety irrigationType season splitdose state GFRavailable id combinedName __typename } }",
+      "variables": {
+        "state": stateId 
+      }
+    }
 
     this.logger.log(`GFR payload: ${JSON.stringify(gfrPayload, null, 2)}`);
 
