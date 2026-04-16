@@ -105,7 +105,12 @@ export class AppController {
       const itemId = body?.message?.order?.items?.[0]?.id;
       if (itemId === "gfr-agri-crop-recommendation") {
         console.log("INSIDE GFR CROP RECOMMENDATION SEARCH...");
-        return this.appService.fetchGFRRecommendation(body);
+        const response = await this.appService.fetchGFRRecommendation(body);
+        console.log(
+          "GFR recommendation final response-->>",
+          JSON.stringify(response, null, 2),
+        );
+        return response;
       } else {
         console.log("INSIDE GFR CROP REGISTRY SEARCH...");
         return this.appService.fetchGFRDetails(body);
