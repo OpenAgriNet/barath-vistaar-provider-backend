@@ -3309,10 +3309,12 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
                     {
                       descriptor: { code: "recommendations" },
                       display: true,
-                      list: recommendations.map((rec: any, index: number) => ({
-                        descriptor: { code: `recommendation_${index}` },
-                        value: rec,
-                      })),
+                      list: [
+                        {
+                          descriptor: { code: "data" },
+                          value: JSON.stringify(recommendations),
+                        },
+                      ],
                     },
                   ],
                 },
