@@ -3223,14 +3223,14 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       );
     }
 
-    // Extract N, P, K, OC from the first test result
+    // Extract results directly from firstTest.results
     const firstTest = testResults[0];
-    const rdfValues = firstTest?.rdfValues ?? {};
+    const results = firstTest?.results ?? {};
     const npkResults = {
-      n: rdfValues?.N ?? rdfValues?.n ?? null,
-      p: rdfValues?.P ?? rdfValues?.p ?? null,
-      k: rdfValues?.K ?? rdfValues?.k ?? null,
-      OC: rdfValues?.OC ?? null,
+      n: results?.n ?? null,
+      p: results?.p ?? null,
+      k: results?.k ?? null,
+      OC: results?.OC ?? null,
     };
 
     console.log("GFR Recommendation NPK values-->>", npkResults);
