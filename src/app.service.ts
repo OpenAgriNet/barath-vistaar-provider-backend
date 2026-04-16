@@ -57,7 +57,6 @@ const PMKissanProtalErrors = {
 
 @Injectable()
 export class AppService {
-
   constructor(
     private readonly httpService: HttpService,
     private readonly hasuraService: HasuraService,
@@ -66,8 +65,8 @@ export class AppService {
     private readonly configService: ConfigService,
     private readonly pmfbyService: PmfbyService,
     private readonly weatherForecastService: WeatherForecastService,
-    private readonly mandiService: MandiService
-  ) { }
+    private readonly mandiService: MandiService,
+  ) {}
 
   private nameSpace = process.env.HASURA_NAMESPACE;
   private base_url = process.env.BASE_URL;
@@ -166,7 +165,7 @@ export class AppService {
           if (!this.isValidUrl(item.flncontentProviderRelationshp.image)) {
             item.flncontentProviderRelationshp.image =
               await this.hasuraService.getImageUrl(
-                item.flncontentProviderRelationshp.image
+                item.flncontentProviderRelationshp.image,
               );
           }
         }
@@ -454,7 +453,7 @@ export class AppService {
     try {
       const response = await axios.post(
         "http://3.6.146.174:8882/indexes/oan-index/search",
-        payload
+        payload,
       );
 
       body.context.action = "on_search";
@@ -678,9 +677,9 @@ export class AppService {
               "Content-Type": "application/json",
               "x-hasura-admin-secret": process.env.SECRET,
             },
-          }
+          },
         )
-        .pipe(map((item) => item.data))
+        .pipe(map((item) => item.data)),
     );
 
     confirmDto.message.order = order;
@@ -720,9 +719,9 @@ export class AppService {
                 "Content-Type": "application/json",
                 "x-hasura-admin-secret": process.env.SECRET,
               },
-            }
+            },
           )
-          .pipe(map((item) => item.data))
+          .pipe(map((item) => item.data)),
       );
       console.log("res in test api update: ", res.data);
 
@@ -744,7 +743,7 @@ export class AppService {
     const courseData = await this.hasuraService.rateIcarContentById(
       itemId,
       rating,
-      feedback
+      feedback,
     );
     const id = courseData.data.insert_Rating.returning[0].id;
 
@@ -770,18 +769,18 @@ export class AppService {
       this.logger.log("detectedType: ", detectedType);
       this.logger.log("mobileNumber: ", mobileNumber);
       // if (detectedType=="") {
-        if (/^[6-9]\d{9}$/.test(mobileNumber)) {
-          detectedType = "Mobile";
+      if (/^[6-9]\d{9}$/.test(mobileNumber)) {
+        detectedType = "Mobile";
         // } else if (mobileNumber.length == 14 && /^[6-9]\d{9}$/.test(mobileNumber.substring(0, 10))) {
         //   detectedType = "MobileAadhar";
-        } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
-          detectedType = "Aadhar";
-        } else if (mobileNumber.length == 11) {
-          detectedType = "Ben_id";
-        } else {
-          // Default to Ben_id if format doesn't match any known pattern
-          detectedType = "Ben_id";
-        }
+      } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
+        detectedType = "Aadhar";
+      } else if (mobileNumber.length == 11) {
+        detectedType = "Ben_id";
+      } else {
+        // Default to Ben_id if format doesn't match any known pattern
+        detectedType = "Ben_id";
+      }
       // }
 
       let key = getUniqueKey();
@@ -842,7 +841,7 @@ export class AppService {
         // Use the response key for decryption
         let decryptedData: any = await decryptRequest(
           encryptedResponse,
-          responseKey || key
+          responseKey || key,
         );
         console.log("Response from decryptedData(sendOTP)", decryptedData);
 
@@ -871,7 +870,7 @@ export class AppService {
       console.error(
         "Error in sendOTP:",
         error.message,
-        error.response?.data || error
+        error.response?.data || error,
       );
 
       /*
@@ -909,32 +908,32 @@ export class AppService {
   async verifyOTP(
     mobileNumber: string,
     otp: string,
-    type?: string
+    type?: string,
   ): Promise<any> {
     try {
       // Auto-detect the type if not provided
       let detectedType = type;
       // if (!detectedType) {
-        // Comment out other cases and keep only Ben_id
-        if (/^[6-9]\d{9}$/.test(mobileNumber)) {
-          detectedType = "Mobile";
+      // Comment out other cases and keep only Ben_id
+      if (/^[6-9]\d{9}$/.test(mobileNumber)) {
+        detectedType = "Mobile";
         // } else if (mobileNumber.length == 14 && /^[6-9]\d{9}$/.test(mobileNumber.substring(0, 10))) {
         //   detectedType = "MobileAadhar";
-        } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
-          detectedType = "Aadhar";
-        } else if (mobileNumber.length == 11) {
-          detectedType = "Ben_id";
-        } else {
-          // Default to Ben_id if format doesn't match any known pattern
-          detectedType = "Ben_id";
-        }
+      } else if (mobileNumber.length == 12 && /^\d+$/.test(mobileNumber)) {
+        detectedType = "Aadhar";
+      } else if (mobileNumber.length == 11) {
+        detectedType = "Ben_id";
+      } else {
+        // Default to Ben_id if format doesn't match any known pattern
+        detectedType = "Ben_id";
+      }
 
-        // Always use Ben_id
-        // detectedType = "Ben_id";
+      // Always use Ben_id
+      // detectedType = "Ben_id";
       // }
 
       console.log(
-        `Detected type for verification ${mobileNumber}: ${detectedType}`
+        `Detected type for verification ${mobileNumber}: ${detectedType}`,
       );
 
       const requestData = JSON.stringify({
@@ -952,7 +951,10 @@ export class AppService {
       let data = {
         EncryptedRequest: `${encrypted_text}@${key}`,
       };
-      console.log("(inside verifyOTP)the data in the data var is : ", JSON.stringify(data, null, 2));
+      console.log(
+        "(inside verifyOTP)the data in the data var is : ",
+        JSON.stringify(data, null, 2),
+      );
       let config = {
         method: "post",
         maxBodyLength: Infinity,
@@ -1016,7 +1018,7 @@ export class AppService {
         return this.createStatusErrorResponse(
           body.context,
           "missing_order_id_or_registration_number",
-          "Please provide a valid order ID or registration number"
+          "Please provide a valid order ID or registration number",
         );
       }
 
@@ -1028,15 +1030,22 @@ export class AppService {
           console.log("inside handleStatus: isPmfbyStatusRequest");
           return await this.handlePmfbyStatus(body, orderId);
         }
-        console.log("inside handleStatus: PMKISAN otp validate and status request");
-        return await this.handleOtpValidation(body, orderId, regNumber, phoneNumber);
+        console.log(
+          "inside handleStatus: PMKISAN otp validate and status request",
+        );
+        return await this.handleOtpValidation(
+          body,
+          orderId,
+          regNumber,
+          phoneNumber,
+        );
       }
 
       // Handle other status requests if needed
       return this.createStatusErrorResponse(
         body.context,
         "invalid_request",
-        "Invalid status request"
+        "Invalid status request",
       );
     } catch (err) {
       console.error("❌ Error in handleStatus:", err);
@@ -1058,7 +1067,7 @@ export class AppService {
     ) {
       throw new HttpException(
         "Invalid input: data.getTestForAuthUser must be a non-empty array",
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -1086,7 +1095,7 @@ export class AppService {
         // Validate data object
         if (!data) {
           console.warn(
-            `Skipping invalid item at index ${index}: data is null or undefined`
+            `Skipping invalid item at index ${index}: data is null or undefined`,
           );
           return null;
         }
@@ -1120,8 +1129,9 @@ export class AppService {
               current[key] === null
             ) {
               console.warn(
-                `${field.message} for item ${data.id || data.computedID || "unknown"
-                } at index ${index}`
+                `${field.message} for item ${
+                  data.id || data.computedID || "unknown"
+                } at index ${index}`,
               );
               return null;
             }
@@ -1145,16 +1155,18 @@ export class AppService {
           .map((param: any) => {
             if (!param || !param.key || param.value === undefined) {
               console.warn(
-                `Invalid parameter for item ${data.id || data.computedID || "unknown"
-                }: missing key or value`
+                `Invalid parameter for item ${
+                  data.id || data.computedID || "unknown"
+                }: missing key or value`,
               );
               return null;
             }
             const value =
               param.value === "NA"
                 ? "Not available"
-                : `${param.value} ${param.unit || ""} (${param.rating || "Unknown"
-                })`;
+                : `${param.value} ${param.unit || ""} (${
+                    param.rating || "Unknown"
+                  })`;
             return {
               code: parameterMapping[param.key] || param.key.toLowerCase(),
               value,
@@ -1185,8 +1197,9 @@ export class AppService {
           .map((rec: any, recIndex: number) => {
             if (!rec || !rec.crop) {
               console.warn(
-                `Skipping invalid fertilizer recommendation at index ${recIndex} for item ${data.id || data.computedID || "unknown"
-                }: missing or invalid crop`
+                `Skipping invalid fertilizer recommendation at index ${recIndex} for item ${
+                  data.id || data.computedID || "unknown"
+                }: missing or invalid crop`,
               );
               return null;
             }
@@ -1201,8 +1214,9 @@ export class AppService {
                     !fert.bags
                   ) {
                     console.warn(
-                      `Skipping invalid fertilizer at index ${fertIndex} for crop ${rec.crop
-                      } in item ${data.id || data.computedID || "unknown"}`
+                      `Skipping invalid fertilizer at index ${fertIndex} for crop ${
+                        rec.crop
+                      } in item ${data.id || data.computedID || "unknown"}`,
                     );
                     return null;
                   }
@@ -1251,8 +1265,9 @@ export class AppService {
           .map((def: any, index: number) => {
             if (!def) {
               console.warn(
-                `Skipping invalid deficiency at index ${index} for item ${data.id || data.computedID || "unknown"
-                }`
+                `Skipping invalid deficiency at index ${index} for item ${
+                  data.id || data.computedID || "unknown"
+                }`,
               );
               return null;
             }
@@ -1337,23 +1352,26 @@ export class AppService {
         const nutrientRatings =
           data.reportData.parameterInfos
             .filter((param: any) =>
-              ["pH", "EC", "OC", "p", "k"].includes(param.key)
+              ["pH", "EC", "OC", "p", "k"].includes(param.key),
             )
             .map(
               (param: any) =>
-                `${param.name || param.key}: ${param.rating || "Unknown"}`
+                `${param.name || param.key}: ${param.rating || "Unknown"}`,
             )
             .join(", ") || "No nutrient ratings available";
 
         return {
           id: data.computedID || data.id || "unknown",
           descriptor: {
-            name: `Soil Health Card for Farmer ${data.farmer?.name || "Unknown"
-              }`,
+            name: `Soil Health Card for Farmer ${
+              data.farmer?.name || "Unknown"
+            }`,
             short_desc: `${nutrientRatings}, crop recommendation: ${recommendedCrops}`,
-            long_desc: `Soil Health Card for ${data.farmer?.name || "Unknown"
-              } in ${data.village?.name || "Unknown"}, ${data.district?.name || "Unknown"
-              }. Nutrient Ratings: ${nutrientRatings}. Recommended crops: ${recommendedCrops}.`,
+            long_desc: `Soil Health Card for ${
+              data.farmer?.name || "Unknown"
+            } in ${data.village?.name || "Unknown"}, ${
+              data.district?.name || "Unknown"
+            }. Nutrient Ratings: ${nutrientRatings}. Recommended crops: ${recommendedCrops}.`,
           },
           media: [
             {
@@ -1460,7 +1478,7 @@ export class AppService {
     } catch (error) {
       throw new HttpException(
         `Token retrieval failed: ${error.message}`,
-        HttpStatus.UNAUTHORIZED
+        HttpStatus.UNAUTHORIZED,
       );
     }
 
@@ -1491,7 +1509,7 @@ export class AppService {
 
     console.log(
       "soilHealthPayload-->>",
-      JSON.stringify(soilHealthPayload, null, 2)
+      JSON.stringify(soilHealthPayload, null, 2),
     );
     console.log("baseUrl----> ", baseUrl);
     try {
@@ -1511,16 +1529,21 @@ export class AppService {
     } catch (error) {
       console.error(
         "Soil health API error:",
-        error.response?.data || error.message
+        error.response?.data || error.message,
       );
       throw new HttpException(
         `Soil health API call failed: ${error.message}`,
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
-  private async handleOtpValidation(body: any, orderId: string, regNumber: string, phoneNumber: string) {
+  private async handleOtpValidation(
+    body: any,
+    orderId: string,
+    regNumber: string,
+    phoneNumber: string,
+  ) {
     try {
       // const storedData = this.tempOTPStore;
 
@@ -1532,19 +1555,15 @@ export class AppService {
       //   );
       // }
 
-
       // TODO: comment for now implement OTP later
       // Verify OTP
-      const verifyResponse = await this.verifyOTP(
-        regNumber,
-        orderId
-      );
+      const verifyResponse = await this.verifyOTP(regNumber, orderId);
 
       if (verifyResponse.status !== "OK") {
         return this.createStatusErrorResponse(
           body.context,
           "invalid_otp",
-          "Invalid or expired OTP. Please try again."
+          "Invalid or expired OTP. Please try again.",
         );
       }
 
@@ -1572,7 +1591,7 @@ export class AppService {
           body.context,
           orderId,
           regNumber,
-          userDataResponse
+          userDataResponse,
         );
       } catch (fetchError) {
         console.error("❌ Error in fetchUserData:", fetchError);
@@ -1580,7 +1599,7 @@ export class AppService {
           body.context,
           orderId,
           regNumber,
-          fetchError
+          fetchError,
         );
       }
     } catch (error) {
@@ -1588,7 +1607,7 @@ export class AppService {
       return this.createStatusErrorResponse(
         body.context,
         "otp_validation_failed",
-        "Failed to validate OTP. Please try again."
+        "Failed to validate OTP. Please try again.",
       );
     }
   }
@@ -1599,7 +1618,12 @@ export class AppService {
     const itemId = body?.message?.order?.items?.[0]?.id ?? "";
     const pid = String(providerId).toLowerCase();
     const iid = String(itemId).toLowerCase();
-    return (pid === "schemes-agri" || pid === "pmfby-agri" || iid === "pmfby") || iid.startsWith("pmfby");
+    return (
+      pid === "schemes-agri" ||
+      pid === "pmfby-agri" ||
+      iid === "pmfby" ||
+      iid.startsWith("pmfby")
+    );
   }
 
   /**
@@ -1652,7 +1676,7 @@ export class AppService {
       return this.createStatusErrorResponse(
         body.context,
         "missing_phone",
-        "Phone number is required. Use the same transaction_id from get_otp or send phone in fulfillment."
+        "Phone number is required. Use the same transaction_id from get_otp or send phone in fulfillment.",
       );
     }
 
@@ -1663,7 +1687,7 @@ export class AppService {
       return this.createStatusErrorResponse(
         body.context,
         "missing_input",
-        "inquiry_type (policy_status or claim_status), season, and year are required in fulfillment customer.person.tags."
+        "inquiry_type (policy_status or claim_status), season, and year are required in fulfillment customer.person.tags.",
       );
     }
 
@@ -1673,7 +1697,7 @@ export class AppService {
         return this.createStatusErrorResponse(
           body.context,
           "otp_verification_failed",
-          result.reason ?? "OTP verification failed"
+          result.reason ?? "OTP verification failed",
         );
       }
       this.pmfbyVerifiedTransactions.add(transactionId);
@@ -1683,7 +1707,7 @@ export class AppService {
         return this.createStatusErrorResponse(
           body.context,
           "farmer_id_not_found",
-          "Farmer ID not found for the provided mobile number"
+          "Farmer ID not found for the provided mobile number",
         );
       }
 
@@ -1704,22 +1728,28 @@ export class AppService {
           farmerId,
           seasonCode,
           formattedYear,
-          pmfbyToken
+          pmfbyToken,
         );
-        mappedResponse = await pmfbyPolicyGenerator(response?.data ?? response, "Policies");
+        mappedResponse = await pmfbyPolicyGenerator(
+          response?.data ?? response,
+          "Policies",
+        );
       } else if (String(inquiryType).toLowerCase() === "claim_status") {
         const response = await this.pmfbyService.getClaimStatus(
           farmerId,
           seasonCode,
           String(year),
-          pmfbyToken
+          pmfbyToken,
         );
-        mappedResponse = await pmfbyClaimStatusGenerator(response?.data ?? response, "Claims");
+        mappedResponse = await pmfbyClaimStatusGenerator(
+          response?.data ?? response,
+          "Claims",
+        );
       } else {
         return this.createStatusErrorResponse(
           body.context,
           "invalid_inquiry_type",
-          "inquiry_type must be policy_status or claim_status"
+          "inquiry_type must be policy_status or claim_status",
         );
       }
 
@@ -1729,15 +1759,20 @@ export class AppService {
           order: {
             id: body.message?.order?.id ?? transactionId,
             state: "COMPLETED",
-            ...(body.message?.order?.provider && { provider: body.message.order.provider }),
-            ...(body.message?.order?.items?.length && { items: body.message.order.items }),
+            ...(body.message?.order?.provider && {
+              provider: body.message.order.provider,
+            }),
+            ...(body.message?.order?.items?.length && {
+              items: body.message.order.items,
+            }),
             tags: [
               {
                 display: true,
                 descriptor: {
                   name: "OTP Verified",
                   code: "otp_verified",
-                  short_desc: "Mobile number verified successfully. Policy/claim status below.",
+                  short_desc:
+                    "Mobile number verified successfully. Policy/claim status below.",
                 },
               },
             ],
@@ -1764,7 +1799,7 @@ export class AppService {
   private createStatusErrorResponse(
     context: any,
     code: string,
-    message: string
+    message: string,
   ) {
     return {
       context: {
@@ -1794,7 +1829,7 @@ export class AppService {
   private extractBeneficiaryName(userDataResponse: string): string {
     // Extract beneficiary name from the response string
     const beneficiaryNameMatch = userDataResponse.match(
-      /Beneficiary Name - (.+)/
+      /Beneficiary Name - (.+)/,
     );
     if (beneficiaryNameMatch && beneficiaryNameMatch[1]) {
       return beneficiaryNameMatch[1].trim();
@@ -1807,7 +1842,7 @@ export class AppService {
     context: any,
     orderId: string,
     mobileNumber: string,
-    userDataResponse: string
+    userDataResponse: string,
   ) {
     return {
       context: {
@@ -1862,7 +1897,7 @@ export class AppService {
     context: any,
     orderId: string,
     mobileNumber: string,
-    fetchError: any
+    fetchError: any,
   ) {
     return {
       context: {
@@ -1927,7 +1962,7 @@ export class AppService {
     try {
       const courseData = await this.hasuraService.SubmitFeedback(
         description,
-        id
+        id,
       );
       console.log("courseData", courseData);
       return { message: "feedback submitted Successfully" };
@@ -2021,9 +2056,11 @@ export class AppService {
 
       const resp = await this.hasuraService.findIcarContent(searchQuery);
 
-
       // const icarResponse: any = resp.data.icar_.Content;
-      const icarResponse: any = process.env.NODE_ENV === 'dev' ? resp.data.icar_.Content : resp.data.Content;
+      const icarResponse: any =
+        process.env.NODE_ENV === "dev"
+          ? resp.data.icar_.Content
+          : resp.data.Content;
       // console.log("icarResponse=======>>>> ", JSON.stringify(icarResponse, null, 2));
       for (let item of icarResponse) {
         if (item.icon) {
@@ -2042,7 +2079,6 @@ export class AppService {
           catalog: catalog,
         },
       };
-
 
       return courseData;
     } catch (err) {
@@ -2063,7 +2099,7 @@ export class AppService {
       return this.createErrorResponse(
         body.context,
         "missing_registration",
-        "Valid registration number is required for OTP generation"
+        "Valid registration number is required for OTP generation",
       );
     }
 
@@ -2125,7 +2161,7 @@ export class AppService {
           body.context,
           "otp_error",
           otpResponse.d?.output?.Message ||
-          "Failed to generate OTP. Please try again later."
+            "Failed to generate OTP. Please try again later.",
         );
       }
     } catch (error) {
@@ -2133,7 +2169,7 @@ export class AppService {
       return this.createErrorResponse(
         body.context,
         "processing_error",
-        "Failed to process request. Please try again later."
+        "Failed to process request. Please try again later.",
       );
     }
   }
@@ -2236,25 +2272,26 @@ export class AppService {
     DistrictName: string,
     SubDistrictName: string,
     VillageName: string,
-    eKYC_Status: string
+    eKYC_Status: string,
   ): string {
     return `Beneficiary Name - ${BeneficiaryName}
 Beneficiary Location - ${StateName}, ${DistrictName}, ${SubDistrictName}, ${VillageName}
 Registration Number - ${Reg_No}
 Registration Date - ${format(
       new Date(DateOfRegistration),
-      "M/d/yyyy h:mm:ss a"
+      "M/d/yyyy h:mm:ss a",
     )}
-Last Installment Status - ${LatestInstallmentPaid == 0
+Last Installment Status - ${
+      LatestInstallmentPaid == 0
         ? "No"
         : this.addOrdinalSuffix(LatestInstallmentPaid)
-      } Installment payment done
+    } Installment payment done
 eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
   }
 
   async getUserData(
     mobileNumber: string,
-    type: string = "Ben_id"
+    type: string = "Ben_id",
   ): Promise<any> {
     let res: any;
     try {
@@ -2294,7 +2331,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
           try {
             res.d.output = JSON.parse(decryptedData);
-            
+
             res["status"] = res.d.output.Rsponce != "False" ? "OK" : "NOT_OK";
           } catch (parseError) {
             console.error("Error parsing decrypted data:", parseError);
@@ -2354,12 +2391,12 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     if (/^[6-9]\d{9}$/.test(userIdentifier)) {
       type = "Mobile";
       res = await this.getUserData(userIdentifier, "Mobile");
-    // } else if (
-    //   userIdentifier.length == 14 &&
-    //   /^[6-9]\d{9}$/.test(userIdentifier.substring(0, 10))
-    // ) {
-    //   type = "MobileAadhar";
-    //   res = await this.getUserData(userIdentifier, "MobileAadhar");
+      // } else if (
+      //   userIdentifier.length == 14 &&
+      //   /^[6-9]\d{9}$/.test(userIdentifier.substring(0, 10))
+      // ) {
+      //   type = "MobileAadhar";
+      //   res = await this.getUserData(userIdentifier, "MobileAadhar");
     } else if (userIdentifier.length == 12 && /^\d+$/.test(userIdentifier)) {
       type = "Aadhar";
       res = await this.getUserData(userIdentifier, "Aadhar");
@@ -2369,8 +2406,8 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     } else {
       return Promise.reject(
         new Error(
-          "Please enter a valid Beneficiary ID/Aadhaar Number/Phone number"
-        )
+          "Please enter a valid Beneficiary ID/Aadhaar Number/Phone number",
+        ),
       );
     }
 
@@ -2394,7 +2431,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       this.titleCase(res.d.output["DistrictName"]),
       this.titleCase(res.d.output["SubDistrictName"]),
       this.titleCase(res.d.output["VillageName"]),
-      res.d.output["eKYC_Status"]
+      res.d.output["eKYC_Status"],
     );
 
     this.logger.log("ChatbotBeneficiaryStatus");
@@ -2459,8 +2496,8 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
               userErrors.push(
                 PMKissanProtalErrors[`${value}`]["text"].replace(
                   "{{farmer_name}}",
-                  this.titleCase(res.d.output["BeneficiaryName"])
-                )
+                  this.titleCase(res.d.output["BeneficiaryName"]),
+                ),
               );
             }
           }
@@ -2472,16 +2509,19 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           PMKissanProtalErrors["No Errors"]["text"]
             .replace(
               "{{farmer_name}}",
-              this.titleCase(res.d.output["BeneficiaryName"])
+              this.titleCase(res.d.output["BeneficiaryName"]),
             )
             .replace(
               "{{latest_installment_paid}}",
-              res.d.output["LatestInstallmentPaid"]
+              res.d.output["LatestInstallmentPaid"],
             )
             .replace(
               "{{Reg_Date (DD-MM-YYYY)}}",
-              format(new Date(res.d.output["DateOfRegistration"]), "dd-MM-yyyy")
-            )
+              format(
+                new Date(res.d.output["DateOfRegistration"]),
+                "dd-MM-yyyy",
+              ),
+            ),
         );
       }
     } catch (error) {
@@ -2489,7 +2529,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     }
 
     return `=== PM KISAN BENEFICIARY STATUS ===\n\n${userDetails}\n\n=== PAYMENT STATUS & ISSUES ===\n\n${userErrors.join(
-      "\n"
+      "\n",
     )}`;
   }
   /**
@@ -2500,7 +2540,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     code: string,
     name: string,
     short_desc: string,
-    type?: string
+    type?: string,
   ) {
     const message: any = {
       order: {
@@ -2556,7 +2596,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           "Missing Input",
           !requestType
             ? "request_type must be get_otp. Phone number is required."
-            : "Phone number is required for PMFBY OTP flow"
+            : "Phone number is required for PMFBY OTP flow",
         ),
       };
     }
@@ -2568,14 +2608,15 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     if (requestTypeLower === "get_otp") {
       try {
         const result = await this.pmfbyService.getOtp(phoneStr);
-        if (transactionId) this.pmfbyOtpTransactionStore.set(transactionId, phoneStr);
+        if (transactionId)
+          this.pmfbyOtpTransactionStore.set(transactionId, phoneStr);
         return {
           ...baseResponse(),
           message: this.buildPmfbyOnInitMessage(
             body,
             "otp_sent",
             "OTP Sent",
-            result.message ?? "OTP sent successfully"
+            result.message ?? "OTP sent successfully",
           ),
         };
       } catch (err: any) {
@@ -2590,7 +2631,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             body,
             "otp_send_failed",
             "Error",
-            msg
+            msg,
           ),
         };
       }
@@ -2604,7 +2645,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           body,
           "use_status_api",
           "Use Status API",
-          "OTP verification and policy/claim status are done via POST /mobility/status. Send context.transaction_id (same as get_otp), order_id = OTP, and fulfillment tags: inquiry_type (policy_status or claim_status), season, year, phone_number."
+          "OTP verification and policy/claim status are done via POST /mobility/status. Send context.transaction_id (same as get_otp), order_id = OTP, and fulfillment tags: inquiry_type (policy_status or claim_status), season, year, phone_number.",
         ),
       };
     }
@@ -2615,7 +2656,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         body,
         "invalid_request_type",
         "Error",
-        "request_type must be get_otp"
+        "request_type must be get_otp",
       ),
     };
 
@@ -2646,7 +2687,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     return this.weatherForecastService.weatherforecastSearch(body);
   }
 
-
   async masuamGramaWeatherForecastSearch(body: {
     context: components["schemas"]["Context"];
     message: { intent: components["schemas"]["Intent"] };
@@ -2654,7 +2694,6 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     console.log("Mausamgram Weather forecast search initiated");
     return this.weatherForecastService.mausamgramWeatherforecastSearch(body);
   }
-
 
   /**
    * PMFBY search: allowed only when transaction_id has completed OTP verification (via /status with OTP, or legacy init verify_otp).
@@ -2674,10 +2713,18 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       timestamp: new Date().toISOString(),
     });
 
-    const providerId = body?.message?.order?.provider?.id || "unknow provider id";
-    const itemId = body?.message?.order?.items?.[0]?.id || body?.message?.intent?.category?.descriptor?.code || "pmfby";
+    const providerId =
+      body?.message?.order?.provider?.id || "unknow provider id";
+    const itemId =
+      body?.message?.order?.items?.[0]?.id ||
+      body?.message?.intent?.category?.descriptor?.code ||
+      "pmfby";
 
-    const buildSearchError = (code: string, name: string, short_desc: string) => ({
+    const buildSearchError = (
+      code: string,
+      name: string,
+      short_desc: string,
+    ) => ({
       context: baseSearchContext(),
       message: {
         order: {
@@ -2685,16 +2732,17 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           items: [
             {
               id: itemId,
-              tags: [
-                { display: true, descriptor: { name, code, short_desc } },
-              ],
+              tags: [{ display: true, descriptor: { name, code, short_desc } }],
             },
           ],
         },
       },
     });
 
-    console.log("[PMFBY Search] Step 1: Checking OTP verification for transaction_id", transactionId);
+    console.log(
+      "[PMFBY Search] Step 1: Checking OTP verification for transaction_id",
+      transactionId,
+    );
     if (!transactionId || !this.pmfbyVerifiedTransactions.has(transactionId)) {
       const transactionMismatchMessage = !transactionId
         ? "Transaction ID is missing. Include context.transaction_id in the request."
@@ -2702,12 +2750,14 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       console.log("[PMFBY Search] Step 1 FAILED: Transaction not verified", {
         transaction_id: transactionId,
         has_transaction_id: !!transactionId,
-        is_verified: transactionId ? this.pmfbyVerifiedTransactions.has(transactionId) : false,
+        is_verified: transactionId
+          ? this.pmfbyVerifiedTransactions.has(transactionId)
+          : false,
       });
       return buildSearchError(
         "otp_not_verified",
         "Verification Required",
-        transactionMismatchMessage
+        transactionMismatchMessage,
       );
     }
     console.log("[PMFBY Search] Step 1 OK: Transaction verified");
@@ -2716,9 +2766,15 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     const unwrapped = body?.request ?? body?.payload ?? body;
     console.log("[PMFBY Search] Step 2: Body shape", {
       top_level_keys: bodyKeys,
-      has_fulfillments_root: Array.isArray(unwrapped?.fulfillments) && unwrapped.fulfillments.length > 0,
-      has_message_fulfillments: Array.isArray(unwrapped?.message?.fulfillments) && unwrapped.message.fulfillments.length > 0,
-      has_message_order_fulfillments: Array.isArray(unwrapped?.message?.order?.fulfillments) && unwrapped.message?.order?.fulfillments?.length > 0,
+      has_fulfillments_root:
+        Array.isArray(unwrapped?.fulfillments) &&
+        unwrapped.fulfillments.length > 0,
+      has_message_fulfillments:
+        Array.isArray(unwrapped?.message?.fulfillments) &&
+        unwrapped.message.fulfillments.length > 0,
+      has_message_order_fulfillments:
+        Array.isArray(unwrapped?.message?.order?.fulfillments) &&
+        unwrapped.message?.order?.fulfillments?.length > 0,
     });
 
     const fulfillment =
@@ -2730,9 +2786,15 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       fulfillment?.customer?.person?.tags ??
       fulfillment?.person?.tags ??
       (Array.isArray(fulfillment?.tags) ? fulfillment.tags : []);
-    const inquiryType = tags.find((tag: any) => tag?.descriptor?.code === "inquiry_type")?.value;
-    const season = tags.find((tag: any) => tag?.descriptor?.code === "season")?.value;
-    const year = tags.find((tag: any) => tag?.descriptor?.code === "year")?.value;
+    const inquiryType = tags.find(
+      (tag: any) => tag?.descriptor?.code === "inquiry_type",
+    )?.value;
+    const season = tags.find(
+      (tag: any) => tag?.descriptor?.code === "season",
+    )?.value;
+    const year = tags.find(
+      (tag: any) => tag?.descriptor?.code === "year",
+    )?.value;
     const mobileNumber =
       fulfillment?.customer?.contact?.phone ?? fulfillment?.contact?.phone;
 
@@ -2747,7 +2809,9 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       inquiry_type: inquiryType,
       season,
       year,
-      mobile: mobileNumber ? `${String(mobileNumber).slice(0, 4)}****${String(mobileNumber).slice(-2)}` : undefined,
+      mobile: mobileNumber
+        ? `${String(mobileNumber).slice(0, 4)}****${String(mobileNumber).slice(-2)}`
+        : undefined,
       tags_count: tags?.length,
       tag_codes: tags?.map((t: any) => t?.descriptor?.code).filter(Boolean),
     });
@@ -2761,27 +2825,31 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       return buildSearchError(
         "missing_input",
         "Missing Input",
-        `${!inquiryType ? "inquiryType" : !season ? "season" : "year"} is required for PMFBY service`
+        `${!inquiryType ? "inquiryType" : !season ? "season" : "year"} is required for PMFBY service`,
       );
     }
     console.log("[PMFBY Search] Step 2 OK: All required fields present");
 
     console.log("[PMFBY Search] Step 3: Fetching farmer ID for mobile");
     const farmerId = await this.pmfbyService.getFarmerId(mobileNumber);
-    console.log("[PMFBY Search] Step 3: Farmer ID result", { farmerId: farmerId || "(not found)" });
+    console.log("[PMFBY Search] Step 3: Farmer ID result", {
+      farmerId: farmerId || "(not found)",
+    });
     if (!farmerId) {
       console.log("[PMFBY Search] Step 3 FAILED: Farmer ID not found");
       return buildSearchError(
         "farmer_id_not_found",
         "Error",
-        "Farmer ID not found for the provided mobile number"
+        "Farmer ID not found for the provided mobile number",
       );
     }
     console.log("[PMFBY Search] Step 3 OK: Farmer ID resolved");
 
     console.log("[PMFBY Search] Step 4: Getting PMFBY auth token");
     const pmfbyToken = await this.pmfbyService.getPmfbyToken();
-    console.log("[PMFBY Search] Step 4 OK: Token acquired", { token_preview: pmfbyToken ? `${pmfbyToken.slice(0, 8)}...` : "(none)" });
+    console.log("[PMFBY Search] Step 4 OK: Token acquired", {
+      token_preview: pmfbyToken ? `${pmfbyToken.slice(0, 8)}...` : "(none)",
+    });
 
     const formattedYear = String(year).slice(-2);
     const seasonCode =
@@ -2792,44 +2860,67 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           : String(season).toLowerCase() === "summer"
             ? "3"
             : "";
-    console.log("[PMFBY Search] Step 5: Resolved season/year", { seasonCode, formattedYear, inquiryType });
+    console.log("[PMFBY Search] Step 5: Resolved season/year", {
+      seasonCode,
+      formattedYear,
+      inquiryType,
+    });
 
     let mappedResponse;
     try {
       if (String(inquiryType).toLowerCase() === "policy_status") {
-        console.log("[PMFBY Search] Step 6: Fetching policy status", { farmerId, seasonCode, formattedYear });
+        console.log("[PMFBY Search] Step 6: Fetching policy status", {
+          farmerId,
+          seasonCode,
+          formattedYear,
+        });
         const response = await this.pmfbyService.getPolicyStatus(
           farmerId,
           seasonCode,
           formattedYear,
-          pmfbyToken
+          pmfbyToken,
         );
-        mappedResponse = await pmfbyPolicyGenerator(response?.data ?? response, "Policies");
+        mappedResponse = await pmfbyPolicyGenerator(
+          response?.data ?? response,
+          "Policies",
+        );
         console.log("[PMFBY Search] Step 6 OK: Policy data mapped");
       } else if (String(inquiryType).toLowerCase() === "claim_status") {
-        console.log("[PMFBY Search] Step 6: Fetching claim status", { farmerId, seasonCode, year });
+        console.log("[PMFBY Search] Step 6: Fetching claim status", {
+          farmerId,
+          seasonCode,
+          year,
+        });
         const response = await this.pmfbyService.getClaimStatus(
           farmerId,
           seasonCode,
           String(year),
-          pmfbyToken
+          pmfbyToken,
         );
-        mappedResponse = await pmfbyClaimStatusGenerator(response?.data ?? response, "Claims");
+        mappedResponse = await pmfbyClaimStatusGenerator(
+          response?.data ?? response,
+          "Claims",
+        );
         console.log("[PMFBY Search] Step 6 OK: Claim data mapped");
       } else {
-        console.log("[PMFBY Search] Step 6 FAILED: Invalid inquiry_type", { inquiryType });
+        console.log("[PMFBY Search] Step 6 FAILED: Invalid inquiry_type", {
+          inquiryType,
+        });
         return buildSearchError(
           "invalid_inquiry_type",
           "Error",
-          "inquiry_type must be policy_status or claim_status"
+          "inquiry_type must be policy_status or claim_status",
         );
       }
     } catch (err: any) {
-      console.log("[PMFBY Search] Step 6 FAILED: PMFBY API error", { message: err?.message, stack: err?.stack?.split("\n")?.[0] });
+      console.log("[PMFBY Search] Step 6 FAILED: PMFBY API error", {
+        message: err?.message,
+        stack: err?.stack?.split("\n")?.[0],
+      });
       return buildSearchError(
         "pmfby_error",
         "Error",
-        err?.message || "Failed to fetch PMFBY data"
+        err?.message || "Failed to fetch PMFBY data",
       );
     }
 
@@ -2842,5 +2933,140 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
   async mandiSearch(body: any) {
     return this.mandiService.mandiSearch(body);
+  }
+
+  async fetchGFRDetails(body: any): Promise<any> {
+    console.log("INSIDE fetchGFRDetails...");
+
+    const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
+
+    // Extract stateId tag from fulfillments
+    const tags =
+      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+    const getTagValue = (code: string) =>
+      tags.find((t: any) => t?.descriptor?.code === code)?.value;
+
+    const stateId = getTagValue("stateId");
+
+    if (!stateId) {
+      throw new HttpException(
+        "Missing required tag: stateId",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const gfrPayload = {
+      query: `query Query($state: ID) {
+        getCropRegistries(state: $state) {
+          id
+          name
+          variety
+          irrigationType
+          season
+          splitdose
+          GFRavailable
+          combinedName
+          state {
+            _id
+            name
+            code
+          }
+        }
+      }`,
+      variables: {
+        state: stateId,
+      },
+    };
+
+    console.log("GFR payload-->>", JSON.stringify(gfrPayload, null, 2));
+    console.log("GFR baseUrl-->>", baseUrl);
+
+    let gfrData: any;
+    try {
+      const response = await axios.post(baseUrl, gfrPayload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      gfrData = response.data;
+      console.log("GFR API response-->>", JSON.stringify(gfrData, null, 2));
+    } catch (error) {
+      console.error("GFR API error:", error.message);
+      throw new HttpException(
+        `Failed to fetch GFR details: ${error.message}`,
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const cropRegistries: any[] = gfrData?.data?.getCropRegistries ?? [];
+
+    if (!cropRegistries.length) {
+      throw new HttpException(
+        "No crop registry data found for the given state",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // Map each crop registry entry into a Beckn item
+    const items = cropRegistries.map((crop: any) => ({
+      id: crop.id,
+      descriptor: {
+        name: crop.name,
+        long_desc: crop.combinedName,
+      },
+      tags: [
+        {
+          descriptor: { code: "crop_details" },
+          list: [
+            { descriptor: { code: "variety" }, value: crop.variety ?? "" },
+            {
+              descriptor: { code: "irrigationType" },
+              value: crop.irrigationType ?? "",
+            },
+            { descriptor: { code: "season" }, value: crop.season ?? "" },
+            {
+              descriptor: { code: "splitdose" },
+              value: String(crop.splitdose),
+            },
+            {
+              descriptor: { code: "GFRavailable" },
+              value: crop.GFRavailable ?? "",
+            },
+            {
+              descriptor: { code: "stateId" },
+              value: crop.state?._id ?? stateId,
+            },
+            {
+              descriptor: { code: "stateName" },
+              value: crop.state?.name ?? "",
+            },
+            {
+              descriptor: { code: "stateCode" },
+              value: crop.state?.code ?? "",
+            },
+          ],
+        },
+      ],
+    }));
+
+    return {
+      context: {
+        ...body.context,
+        action: "on_init",
+        timestamp: new Date().toISOString(),
+      },
+      message: {
+        order: {
+          provider: {
+            id: body?.message?.order?.provider?.id,
+            descriptor: {
+              name: "GFR Crop Registry",
+            },
+          },
+          items,
+          fulfillments: body?.message?.order?.fulfillments,
+        },
+      },
+    };
   }
 }

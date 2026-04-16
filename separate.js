@@ -19,6 +19,31 @@ function encrypt(text, key) {
   return encrypted;
 }
 
+function tryParseJsonOrLooseObject(text) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {
+    // continue
+  }
+
+  // Heuristic: convert "{Types:Mobile,Values:876,...}" into valid JSON
+  // by quoting keys and bareword (non-numeric) values.
+  if (!(trimmed.startsWith('{') && trimmed.endsWith('}'))) return null;
+
+  let candidate = trimmed;
+  candidate = candidate.replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":');
+  candidate = candidate.replace(/:\s*([A-Za-z_][A-Za-z0-9_-]*)\s*([,}])/g, ':"$1"$2');
+
+  try {
+    return JSON.parse(candidate);
+  } catch (_) {
+    return null;
+  }
+}
+
 function decrypt(textToDecrypt, key) {
   const keyBytes = Buffer.alloc(16);
   const pwdBytes = Buffer.from(key, 'utf-8');
@@ -27,18 +52,11 @@ function decrypt(textToDecrypt, key) {
 
   const encryptedData = Buffer.from(textToDecrypt, 'base64');
   const decipher = crypto.createDecipheriv('aes-128-cbc', keyBytes, keyBytes);
-  decipher.setAutoPadding(false);
+  decipher.setAutoPadding(true);
 
   let decrypted = decipher.update(encryptedData);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
-  let decryptedText = decrypted.toString('utf-8');
-
-  const lastIndex = decryptedText.lastIndexOf('}');
-  const trimmedText = lastIndex !== -1
-    ? decryptedText.substring(0, lastIndex + 1)
-    : decryptedText;
-
-  return trimmedText;
+  return decrypted.toString('utf-8').trim();
 }
 
 // Usage:
@@ -92,11 +110,13 @@ if (!encryptedText || !key || key === 'YOUR_KEY_HERE') {
 try {
   const decrypted = decrypt(encryptedText, key);
   try {
-    const parsed = JSON.parse(decrypted);
-    console.log(JSON.stringify(parsed, null, 2));
-  } catch (_) {
-    console.log(decrypted);
-  }
+    const parsed = tryParseJsonOrLooseObject(decrypted);
+    if (parsed) {
+      console.log(JSON.stringify(parsed, null, 2));
+      process.exit(0);
+    }
+  } catch (_) {}
+  console.log(decrypted);
 } catch (err) {
   console.error('Decryption error:', err.message);
   process.exit(1);
