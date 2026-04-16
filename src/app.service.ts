@@ -2939,7 +2939,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
     console.log("INSIDE fetchGFRDetails...");
 
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
-    
+
     const baseContext = () => ({
       ...body.context,
       action: "on_search",
@@ -2989,7 +2989,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     const gfrPayload = {
       query:
-        "query Query($state: ID) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state { _id name code } } }",
+        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state __typename } }",
       variables: {
         state: stateId,
       },
@@ -3008,7 +3008,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
       gfrData = response.data;
       console.log("GFR API response-->>", JSON.stringify(gfrData, null, 2));
     } catch (error) {
-      console.log('print error for gfr: ', error);
+      console.log("print error for gfr: ", error);
       console.error("GFR API error:", error.message);
       console.error(
         "GFR API error response:",
@@ -3057,15 +3057,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
             },
             {
               descriptor: { code: "stateId" },
-              value: crop.state?._id ?? stateId,
-            },
-            {
-              descriptor: { code: "stateName" },
-              value: crop.state?.name ?? "",
-            },
-            {
-              descriptor: { code: "stateCode" },
-              value: crop.state?.code ?? "",
+              value: crop.state ?? stateId,
             },
           ],
         },
