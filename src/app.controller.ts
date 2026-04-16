@@ -64,7 +64,7 @@ export class AppController {
     return this.appService.handleRating(body);
   }
 
-  //mobility
+  //mobility search endpoint
   @Post("mobility/search")
   async getContentFromIcar1(@Body() body: any) {
     console.log("search api calling");
