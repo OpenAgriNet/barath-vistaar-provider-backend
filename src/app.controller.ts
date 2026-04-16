@@ -18,6 +18,7 @@ import { AppService } from "./app.service";
 import { AuthService } from "./auth/auth.service";
 import { firstValueFrom } from "rxjs";
 import { HttpService } from "@nestjs/axios";
+import { GfrService } from "./services/gfr/gfr.service";
 
 @Controller("")
 export class AppController {
@@ -25,6 +26,7 @@ export class AppController {
     private readonly appService: AppService,
     private readonly authService: AuthService,
     private readonly httpService: HttpService,
+    private readonly gfrService: GfrService,
   ) {}
 
   @Get()
@@ -113,7 +115,7 @@ export class AppController {
         return response;
       } else {
         console.log("INSIDE GFR CROP REGISTRY SEARCH...");
-        return this.appService.fetchGFRDetails(body);
+        return this.gfrService.fetchCropRegistry(body);
       }
     } else if (categoryCode === "price-discovery") {
       const itemCode =
