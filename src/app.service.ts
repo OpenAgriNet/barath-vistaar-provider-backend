@@ -2989,9 +2989,9 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     const gfrPayload = {
       query:
-        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { id name variety irrigationType season splitdose GFRavailable combinedName state { _id name code } __typename } }",
+        "query GetCropRegistries($state: String) { getCropRegistries(state: $state) { name variety irrigationType season splitdose state GFRavailable id combinedName __typename } }",
       variables: {
-        state: stateId,
+        state: "63f99fbd519359b7438a84ca",
       },
     };
 
@@ -3006,9 +3006,11 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
         },
       });
       gfrData = response.data;
-      console.log("GFR API response-->>", JSON.stringify(gfrData, null, 2));
+      console.log(
+        "GFR API response length-->>",
+        gfrData?.data?.getCropRegistries?.length ?? 0,
+      );
     } catch (error) {
-      console.log("print error for gfr: ", error);
       console.error("GFR API error:", error.message);
       console.error(
         "GFR API error response:",
