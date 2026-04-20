@@ -2,17 +2,55 @@ import { Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
 import * as crypto from "crypto";
 
+const GCM_AUTH_TAG_LENGTH = 16;
+const AES_256_KEY_LENGTH = 32;
+const MIN_GCM_PAYLOAD_LENGTH = GCM_AUTH_TAG_LENGTH + 1;
+
+function parseHexEnv(envName: "GRIEVANCE_KEY_1" | "GRIEVANCE_KEY_2"): Buffer {
+  const rawValue = process.env[envName];
+  if (!rawValue) {
+    throw new Error(`${envName} is not set`);
+  }
+
+  const normalized = rawValue.trim().replace(/\s+/g, "");
+  if (normalized.length === 0 || normalized.length % 2 !== 0) {
+    throw new Error(`${envName} must be a valid even-length hex string`);
+  }
+
+  if (!/^[0-9a-fA-F]+$/.test(normalized)) {
+    throw new Error(`${envName} must contain only hex characters`);
+  }
+
+  return Buffer.from(normalized, "hex");
+}
+
+function getGrievanceCryptoMaterial(): { key: Buffer; nonce: Buffer } {
+  const key = parseHexEnv("GRIEVANCE_KEY_1");
+  const nonce = parseHexEnv("GRIEVANCE_KEY_2");
+
+  if (key.length !== AES_256_KEY_LENGTH) {
+    throw new Error(
+      `GRIEVANCE_KEY_1 must decode to ${AES_256_KEY_LENGTH} bytes, got ${key.length}`,
+    );
+  }
+
+  if (nonce.length === 0) {
+    throw new Error("GRIEVANCE_KEY_2 must decode to a non-empty nonce");
+  }
+
+  return { key, nonce };
+}
+
 
 function encryptGrievancePayload(plainText: string): string {
   // Matches provided Python implementation:
   // AES.new(key, AES.MODE_GCM, nonce=iv) and base64(ciphertext + tag)
-  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex"); // 32 bytes
-  const iv = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex"); // nonce bytes
+  const { key, nonce } = getGrievanceCryptoMaterial();
 
   const cipher = crypto.createCipheriv(
     "aes-256-gcm",
     key as unknown as crypto.CipherKey,
-    iv as unknown as crypto.BinaryLike,
+    nonce as unknown as crypto.BinaryLike,
   );
 
   const ciphertext = Buffer.concat([
@@ -30,15 +68,17 @@ function encryptGrievancePayload(plainText: string): string {
 
 function decryptGrievanceResponse(encryptedBase64: string): any {
   // Matches Python decrypt counterpart for AES-GCM with ciphertext||tag payload
-  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex");
-  const nonce = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex");
+  const { key, nonce } = getGrievanceCryptoMaterial();
   const encryptedBytes = Buffer.from(encryptedBase64, "base64");
-  if (encryptedBytes.length < 17) {
+  if (encryptedBytes.length < MIN_GCM_PAYLOAD_LENGTH) {
     throw new Error("Invalid encrypted response: too short for GCM tag");
   }
 
-  const tag = encryptedBytes.subarray(encryptedBytes.length - 16);
-  const ciphertext = encryptedBytes.subarray(0, encryptedBytes.length - 16);
+  const tag = encryptedBytes.subarray(encryptedBytes.length - GCM_AUTH_TAG_LENGTH);
+  const ciphertext = encryptedBytes.subarray(
+    0,
+    encryptedBytes.length - GCM_AUTH_TAG_LENGTH,
+  );
 
   const decipher = crypto.createDecipheriv(
     "aes-256-gcm",
