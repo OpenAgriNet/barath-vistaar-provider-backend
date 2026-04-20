@@ -19,6 +19,7 @@ import { AuthService } from "./auth/auth.service";
 import { firstValueFrom } from "rxjs";
 import { HttpService } from "@nestjs/axios";
 import { GfrService } from "./services/gfr/gfr.service";
+import { PmkisanGrievanceService } from "./services/pmkisan-grievance/pmkisan-grievance.service";
 
 @Controller("")
 export class AppController {
@@ -27,6 +28,7 @@ export class AppController {
     private readonly authService: AuthService,
     private readonly httpService: HttpService,
     private readonly gfrService: GfrService,
+    private readonly pmkisanGrievanceService: PmkisanGrievanceService,
   ) {}
 
   @Get()
@@ -169,7 +171,16 @@ export class AppController {
   @Post("mobility/init")
   async initCourse1(@Body() body: any) {
     console.log("init api calling");
-    if (
+    if (body?.message?.order?.provider?.id === "pmkisan-greviance") {
+      console.log("INSIDE PMKISAN GRIEVANCE INIT...");
+      const grievanceResponse =
+        await this.pmkisanGrievanceService.createGrievance(body);
+      console.log(
+        "PM Kisan Grievance Response:",
+        JSON.stringify(grievanceResponse, null, 2),
+      );
+      return grievanceResponse;
+    } else if (
       body?.message?.order?.provider?.id?.toLowerCase() == "pmfby-agri" &&
       body?.message?.order?.items?.[0]?.id?.toLowerCase() == "pmfby"
     ) {

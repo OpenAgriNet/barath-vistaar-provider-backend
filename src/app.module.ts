@@ -16,6 +16,7 @@ import { WeatherForecastService } from "./services/weatherforecast/weatherforeca
 import { DatabaseService } from "./services/weatherforecast/database.service";
 import { MandiService } from "./services/mandi/mandi.service";
 import { GfrService } from "./services/gfr/gfr.service";
+import { PmkisanGrievanceService } from "./services/pmkisan-grievance/pmkisan-grievance.service";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { GfrService } from "./services/gfr/gfr.service";
     DatabaseService,
     MandiService,
     GfrService,
+    PmkisanGrievanceService,
   ],
 })
 export class AppModule {}
