@@ -1,6 +1,8 @@
 /**
  * PM Kisan Grievance — DECRYPT test
- * Usage: node test-grievance-decrypt.js
+ * Usage:
+ *   node test-grievance-decrypt.js "<encryptedBase64>"
+ *   node test-grievance-decrypt.js decrypt "<encryptedBase64>"
  *
  * Paste the encrypted base64 string from the API response into ENCRYPTED_INPUT.
  * Decrypts using AES-256-GCM with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (nonce).
@@ -39,12 +41,22 @@ function decrypt(encryptedBase64) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
+// ── CLI input handling ─────────────────────────────────────────────────────
+function getEncryptedInputFromArgs() {
+  const args = process.argv.slice(2);
+  if (args.length === 0) return null;
+  if (args[0] === "decrypt") return args[1] || null;
+  return args[0];
+}
+
+const encryptedInput = getEncryptedInputFromArgs() || ENCRYPTED_INPUT;
+
 // ── Run ────────────────────────────────────────────────────────────────────
 console.log("\n=== ENCRYPTED INPUT ===");
-console.log(ENCRYPTED_INPUT);
+console.log(encryptedInput);
 
 try {
-  const decryptedText = decrypt(ENCRYPTED_INPUT);
+  const decryptedText = decrypt(encryptedInput);
 
   console.log("\n=== DECRYPTED STRING ===");
   console.log(decryptedText);

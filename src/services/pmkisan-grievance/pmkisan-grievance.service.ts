@@ -105,6 +105,27 @@ function decryptGrievanceResponse(encryptedBase64: string): any {
 export class PmkisanGrievanceService {
   private readonly logger = new Logger(PmkisanGrievanceService.name);
 
+  private getIdentityFromPerson(person: any): {
+    regNumber?: string;
+    aadhaarNumber?: string;
+  } {
+    const regTag = person?.tags?.find(
+      (tag: any) => tag?.descriptor?.code === "reg-details",
+    );
+
+    const regNumber = regTag?.list?.find(
+      (item: any) => item?.descriptor?.code === "reg-number",
+    )?.value;
+
+    const aadhaarNumber = regTag?.list?.find(
+      (item: any) =>
+        item?.descriptor?.code === "aad-number" ||
+        item?.descriptor?.code === "add-number",
+    )?.value;
+
+    return { regNumber, aadhaarNumber };
+  }
+
   private async callEncryptedEndpoint(
     baseUrl: string,
     endpoint: string,
@@ -162,24 +183,180 @@ export class PmkisanGrievanceService {
     return decryptedOutput;
   }
 
+  async searchGrievanceStatus(body: any): Promise<any> {
+    const fulfillment = body?.message?.order?.fulfillments?.[0];
+    const person = fulfillment?.customer?.person;
+    const customerName = person?.name;
+    const phone = fulfillment?.customer?.contact?.phone;
+    const context = body?.context;
+
+    const { regNumber, aadhaarNumber } = this.getIdentityFromPerson(person);
+
+    const baseUrl = (process.env.PMKISAN_GRIEVANCE_BASE_URL ?? "").replace(
+      /\/$/,
+      "",
+    );
+
+    let decryptedOutput: any = {};
+    let finalIdentityNo = regNumber ?? "";
+    let requestType = "Reg_No_Status";
+
+    try {
+      // Prefer registration number when present in reg-details.
+      if (regNumber) {
+        requestType = "Reg_No_Status";
+        finalIdentityNo = regNumber;
+      } else if (aadhaarNumber) {
+        requestType = "IdentityNo_Status";
+        const aadhaarTokenPayload = {
+          Type: "IdentityNo_Details",
+          TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
+          IdentityNo: aadhaarNumber,
+        };
+        const aadhaarTokenResponse = await this.callEncryptedEndpoint(
+          baseUrl,
+          "/GrievanceService.asmx/GrievanceAadhaarToken",
+          aadhaarTokenPayload,
+          "Aadhaar Token for Status",
+        );
+
+        const aadhaarToken =
+          aadhaarTokenResponse?.AadhaarToken ??
+          aadhaarTokenResponse?.aadhaarToken ??
+          aadhaarTokenResponse?.AadharToken ??
+          aadhaarTokenResponse?.aadharToken;
+
+        if (!aadhaarToken) {
+          decryptedOutput = {
+            status: "False",
+            Message:
+              aadhaarTokenResponse?.message ??
+              aadhaarTokenResponse?.Message ??
+              "Aadhaar token not received from GrievanceAadhaarToken API",
+          };
+        } else {
+          finalIdentityNo = aadhaarToken;
+        }
+      } else {
+        decryptedOutput = {
+          status: "False",
+          Message:
+            "Missing identity data in reg-details. Provide reg-number or aad-number.",
+        };
+      }
+
+      if (!decryptedOutput?.status || decryptedOutput?.status !== "False") {
+        const statusPayload = {
+          Type: requestType,
+          TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
+          IdentityNo: finalIdentityNo,
+        };
+        decryptedOutput = await this.callEncryptedEndpoint(
+          baseUrl,
+          "/GrievanceService.asmx/GrievanceStatusCheck",
+          statusPayload,
+          "Grievance Status Check",
+        );
+      }
+    } catch (error) {
+      console.error(
+        "PM Kisan Grievance Status API call error:",
+        error.message,
+        error.response?.data ?? "",
+      );
+      decryptedOutput = { status: "False", Message: error.message };
+    }
+
+    const isSuccess =
+      decryptedOutput?.status !== "False" &&
+      decryptedOutput?.Status !== "False" &&
+      decryptedOutput?.Responce !== "False";
+
+    const responseMessage =
+      decryptedOutput?.Message ??
+      decryptedOutput?.message ??
+      decryptedOutput?.Remark ??
+      "";
+
+    const firstDetail = decryptedOutput?.details?.[0] ?? {};
+
+    return {
+      context: {
+        ...context,
+        action: "on_search",
+        timestamp: new Date().toISOString(),
+      },
+      message: {
+        order: {
+          provider: { id: "pmkisan-greviance" },
+          items: [{ id: "pmkisan-greviance" }],
+          fulfillments: [
+            {
+              customer: {
+                person: { name: customerName },
+                contact: { phone },
+              },
+            },
+          ],
+          tags: [
+            {
+              descriptor: {
+                code: "grievance-status-response",
+                name: "Grievance Status Response",
+              },
+              list: [
+                {
+                  descriptor: { code: "status", name: "Status" },
+                  value: isSuccess ? "Success" : "Failed",
+                },
+                {
+                  descriptor: { code: "message", name: "Message" },
+                  value: responseMessage,
+                },
+                {
+                  descriptor: { code: "lookup-type", name: "Lookup Type" },
+                  value: requestType,
+                },
+                {
+                  descriptor: { code: "identity-no", name: "Identity Number" },
+                  value: finalIdentityNo,
+                },
+                {
+                  descriptor: {
+                    code: "grievance-status",
+                    name: "Grievance Status",
+                  },
+                  value: firstDetail?.GrievanceStatus ?? "",
+                },
+                {
+                  descriptor: {
+                    code: "grievance-date",
+                    name: "Grievance Date",
+                  },
+                  value: firstDetail?.GrievanceDate ?? "",
+                },
+                {
+                  descriptor: {
+                    code: "details",
+                    name: "Details",
+                  },
+                  value: JSON.stringify(decryptedOutput?.details ?? []),
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+  }
+
   async createGrievance(body: any): Promise<any> {
     const fulfillment = body?.message?.order?.fulfillments?.[0];
     const person = fulfillment?.customer?.person;
     const customerName = person?.name;
     const phone = fulfillment?.customer?.contact?.phone;
 
-    // Extract identity fields from reg-details tag
-    const regTag = person?.tags?.find(
-      (tag: any) => tag?.descriptor?.code === "reg-details",
-    );
-    const regNumber = regTag?.list?.find(
-      (item: any) => item?.descriptor?.code === "reg-number",
-    )?.value;
-    const aadhaarNumber = regTag?.list?.find(
-      (item: any) =>
-        item?.descriptor?.code === "aad-number" ||
-        item?.descriptor?.code === "add-number",
-    )?.value;
+    const { regNumber, aadhaarNumber } = this.getIdentityFromPerson(person);
 
     // Extract GrievanceType and GrievanceDescription from grievance-details tag
     const grievanceDetailsTag = person?.tags?.find(

@@ -73,6 +73,17 @@ export class AppController {
   async getContentFromIcar1(@Body() body: any) {
     console.log("search api calling");
 
+    if (body?.message?.order?.provider?.id === "pmkisan-greviance") {
+      console.log("INSIDE PMKISAN GRIEVANCE SEARCH...");
+      const grievanceStatusResponse =
+        await this.pmkisanGrievanceService.searchGrievanceStatus(body);
+      console.log(
+        "PM Kisan Grievance Search Response:",
+        JSON.stringify(grievanceStatusResponse, null, 2),
+      );
+      return grievanceStatusResponse;
+    }
+
     const categoryName = body?.message?.intent?.category?.descriptor?.name;
     console.log("categoryName", categoryName);
     const categoryCode =
