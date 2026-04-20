@@ -105,6 +105,11 @@ export class AppController {
       categoryCode?.startsWith("pmfby")
     ) {
       categoryType = "pmfby";
+    } else if (
+      categoryCode === "grievance" ||
+      categoryNameLower === "grievance-agri"
+    ) {
+      categoryType = "grievance-agri";
     } else if (body?.message?.order?.provider?.id === "gfr-agri") {
       const itemId = body?.message?.order?.items?.[0]?.id;
       if (itemId === "gfr-agri-crop-recommendation") {
@@ -155,6 +160,10 @@ export class AppController {
       case "pmfby":
         console.log("Inside PMFBY search");
         return await this.appService.handlePmfbySearch(body);
+
+      case "grievance-agri":
+        console.log("Inside PMKISAN Grievance search");
+        return await this.pmkisanGrievanceService.searchGrievanceStatus(body);
 
       default:
         // Handle unknown category or return appropriate response
