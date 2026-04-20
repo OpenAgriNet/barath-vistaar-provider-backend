@@ -65,18 +65,80 @@ function decryptGrievanceResponse(encryptedBase64: string): any {
 export class PmkisanGrievanceService {
   private readonly logger = new Logger(PmkisanGrievanceService.name);
 
+  private async callEncryptedEndpoint(
+    baseUrl: string,
+    endpoint: string,
+    payload: any,
+    logPrefix: string,
+  ): Promise<any> {
+    console.log("=".repeat(60));
+    console.log(`[PMKISAN GRIEVANCE] ${logPrefix} JSON being encrypted:`);
+    console.log(JSON.stringify(payload, null, 2));
+    console.log("=".repeat(60));
+
+    const encryptedText = encryptGrievancePayload(JSON.stringify(payload));
+    const requestBody = { EncryptedRequest: encryptedText };
+
+    console.log(`[PMKISAN GRIEVANCE] ${logPrefix} EncryptedRequest body sent to API:`);
+    console.log(JSON.stringify(requestBody, null, 2));
+    console.log("=".repeat(60));
+
+    const url = `${baseUrl}${endpoint}`;
+    const response = await axios.request({
+      method: "post",
+      maxBodyLength: Infinity,
+      url,
+      headers: { "Content-Type": "application/json" },
+      data: requestBody,
+      timeout: 15000,
+    });
+
+    const rawApiResponse = response.data;
+    console.log(`[PMKISAN GRIEVANCE] ${logPrefix} Raw API response:`);
+    console.log(JSON.stringify(rawApiResponse, null, 2));
+    console.log("=".repeat(60));
+
+    const outputField: string =
+      rawApiResponse?.d?.output ?? rawApiResponse?.output ?? rawApiResponse;
+
+    if (typeof outputField !== "string" || outputField.length === 0) {
+      return rawApiResponse;
+    }
+
+    const looksEncrypted = /^[A-Za-z0-9+/]+=*$/.test(outputField.trim());
+    if (!looksEncrypted) {
+      return { status: "False", Message: outputField };
+    }
+
+    console.log(`[PMKISAN GRIEVANCE] ${logPrefix} Encrypted output from API:`);
+    console.log(outputField.trim());
+    console.log("=".repeat(60));
+
+    const decryptedOutput = decryptGrievanceResponse(outputField.trim());
+    console.log(`[PMKISAN GRIEVANCE] ${logPrefix} Decrypted output (parsed JSON):`);
+    console.log(JSON.stringify(decryptedOutput, null, 2));
+    console.log("=".repeat(60));
+
+    return decryptedOutput;
+  }
+
   async createGrievance(body: any): Promise<any> {
     const fulfillment = body?.message?.order?.fulfillments?.[0];
     const person = fulfillment?.customer?.person;
     const customerName = person?.name;
     const phone = fulfillment?.customer?.contact?.phone;
 
-    // Extract IdentityNo (reg-number) from reg-details tag
+    // Extract identity fields from reg-details tag
     const regTag = person?.tags?.find(
       (tag: any) => tag?.descriptor?.code === "reg-details",
     );
-    const identityNo = regTag?.list?.find(
+    const regNumber = regTag?.list?.find(
       (item: any) => item?.descriptor?.code === "reg-number",
+    )?.value;
+    const aadhaarNumber = regTag?.list?.find(
+      (item: any) =>
+        item?.descriptor?.code === "aad-number" ||
+        item?.descriptor?.code === "add-number",
     )?.value;
 
     // Extract GrievanceType and GrievanceDescription from grievance-details tag
@@ -94,100 +156,63 @@ export class PmkisanGrievanceService {
       )?.value ?? "Grievance submitted via Vistaar platform";
 
     const context = body?.context;
-
-    // ── Build raw PM Kisan payload ────────────────────────────────────────
-    const rawPayload = {
-      Type: "Reg_No_Details",
-      TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
-      IdentityNo: identityNo,
-      GrievanceType: grievanceType,
-      GrievanceDescription: grievanceDescription,
-    };
-
-    console.log("=".repeat(60));
-    console.log("[PMKISAN GRIEVANCE] JSON being encrypted:");
-    console.log(JSON.stringify(rawPayload, null, 2));
-    console.log("=".repeat(60));
-
-    // ── Encrypt using AES-256-GCM with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (nonce) ──
-    const encryptedText = encryptGrievancePayload(JSON.stringify(rawPayload));
-    const requestBody = { EncryptedRequest: encryptedText };
-
-    console.log("[PMKISAN GRIEVANCE] EncryptedRequest body sent to API:");
-    console.log(JSON.stringify(requestBody, null, 2));
-    console.log("=".repeat(60));
-
-    // ── Call external PM Kisan Grievance API ─────────────────────────────
     const baseUrl = (process.env.PMKISAN_GRIEVANCE_BASE_URL ?? "").replace(
       /\/$/,
       "",
     );
-    const url = `${baseUrl}/GrievanceService.asmx/LodgeGrievance`;
 
     let decryptedOutput: any = {};
+    let finalIdentityNo = regNumber;
     try {
-      const response = await axios.request({
-        method: "post",
-        maxBodyLength: Infinity,
-        url,
-        headers: { "Content-Type": "application/json" },
-        data: requestBody,
-        timeout: 15000,
-      });
+      // Aadhaar flow:
+      // 1) call GrievanceAadhaarToken using aad-number
+      // 2) use returned AadhaarToken as IdentityNo for LodgeGrievance
+      if (aadhaarNumber) {
+        const aadhaarTokenPayload = {
+          Type: "Reg_No_Details",
+          TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
+          IdentityNo: aadhaarNumber,
+        };
+        const aadhaarTokenResponse = await this.callEncryptedEndpoint(
+          baseUrl,
+          "/GrievanceService.asmx/GrievanceAadhaarToken",
+          aadhaarTokenPayload,
+          "Aadhaar Token",
+        );
+        const aadhaarToken =
+          aadhaarTokenResponse?.AadhaarToken ??
+          aadhaarTokenResponse?.aadhaarToken ??
+          aadhaarTokenResponse?.AadharToken ??
+          aadhaarTokenResponse?.aadharToken;
 
-      const rawApiResponse = response.data;
-      console.log("[PMKISAN GRIEVANCE] Raw API response:");
-      console.log(JSON.stringify(rawApiResponse, null, 2));
-      console.log("=".repeat(60));
-
-      // ── Decrypt the response using the same AES-256-CBC keys ─────────
-      const outputField: string =
-        rawApiResponse?.d?.output ?? rawApiResponse?.output ?? rawApiResponse;
-
-      if (typeof outputField === "string" && outputField.length > 0) {
-        // Only attempt decrypt when the string looks like valid base64
-        // (no spaces, no newlines — plain error messages have those)
-        const looksEncrypted = /^[A-Za-z0-9+/]+=*$/.test(outputField.trim());
-
-        if (looksEncrypted) {
-          try {
-            console.log("[PMKISAN GRIEVANCE] Encrypted output from API:");
-            console.log(outputField.trim());
-            console.log("=".repeat(60));
-
-            decryptedOutput = decryptGrievanceResponse(outputField.trim());
-
-            console.log("[PMKISAN GRIEVANCE] Decrypted output (raw string):");
-            console.log(
-              typeof decryptedOutput === "string"
-                ? decryptedOutput
-                : JSON.stringify(decryptedOutput),
-            );
-            console.log("=".repeat(60));
-
-            console.log("[PMKISAN GRIEVANCE] Decrypted output (parsed JSON):");
-            console.log(JSON.stringify(decryptedOutput, null, 2));
-            console.log("=".repeat(60));
-          } catch (decryptErr) {
-            console.error(
-              "[PMKISAN GRIEVANCE] Decryption failed:",
-              decryptErr.message,
-            );
-            decryptedOutput = {
-              status: "False",
-              Message: `Decryption failed: ${decryptErr.message}`,
-              RawOutput: outputField,
-            };
-          }
-        } else {
-          // Server returned a plain-text error (e.g. NullReferenceException)
+        if (!aadhaarToken) {
           decryptedOutput = {
             status: "False",
-            Message: outputField,
+            Message:
+              aadhaarTokenResponse?.message ??
+              aadhaarTokenResponse?.Message ??
+              "Aadhaar token not received from GrievanceAadhaarToken API",
           };
+        } else {
+          finalIdentityNo = aadhaarToken;
+          console.log("[PMKISAN GRIEVANCE] Aadhaar token received:", aadhaarToken);
         }
-      } else {
-        decryptedOutput = rawApiResponse;
+      }
+
+      if (!decryptedOutput?.status || decryptedOutput?.status !== "False") {
+        const lodgePayload = {
+          Type: "Reg_No_Details",
+          TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
+          IdentityNo: finalIdentityNo,
+          GrievanceType: grievanceType,
+          GrievanceDescription: grievanceDescription,
+        };
+        decryptedOutput = await this.callEncryptedEndpoint(
+          baseUrl,
+          "/GrievanceService.asmx/LodgeGrievance",
+          lodgePayload,
+          "Create Grievance",
+        );
       }
     } catch (error) {
       console.error(
@@ -257,7 +282,7 @@ export class PmkisanGrievanceService {
                     code: "identity-no",
                     name: "Registration Number",
                   },
-                  value: identityNo,
+                  value: finalIdentityNo,
                 },
                 {
                   descriptor: {
