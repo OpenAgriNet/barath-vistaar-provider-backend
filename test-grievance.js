@@ -3,7 +3,7 @@
  *
  * Usage:
  *   node test-grievance.js encrypt '{"Type":"Reg_No_Details","TokenNo":"PMK_123456","IdentityNo":"BR295454592","GrievanceType":"101","GrievanceDescription":"Test"}'
- *   node test-grievance.js decrypt 'dP8MTRIK+MKV+xbe...'
+ *   node test-grievance.js decrypt 'base64(ciphertext+tag)'
  */
 
 const crypto = require("crypto");
@@ -17,22 +17,25 @@ const GRIEVANCE_KEY_2 =
 
 function encrypt(plainText) {
   const key = Buffer.from(GRIEVANCE_KEY_1, "hex");
-  const iv  = Buffer.from(GRIEVANCE_KEY_2, "hex");
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  cipher.setAutoPadding(true);
-  let out = cipher.update(plainText, "utf8", "base64");
-  out += cipher.final("base64");
-  return out;
+  const nonce = Buffer.from(GRIEVANCE_KEY_2, "hex");
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
+  const ciphertext = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([ciphertext, tag]).toString("base64");
 }
 
 function decrypt(encryptedBase64) {
   const key = Buffer.from(GRIEVANCE_KEY_1, "hex");
-  const iv  = Buffer.from(GRIEVANCE_KEY_2, "hex");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  decipher.setAutoPadding(true);
-  let out = decipher.update(encryptedBase64, "base64", "utf8");
-  out += decipher.final("utf8");
-  return out;
+  const nonce = Buffer.from(GRIEVANCE_KEY_2, "hex");
+  const encryptedBytes = Buffer.from(encryptedBase64, "base64");
+  if (encryptedBytes.length < 17) {
+    throw new Error("Invalid encrypted payload: too short for GCM tag");
+  }
+  const tag = encryptedBytes.subarray(encryptedBytes.length - 16);
+  const ciphertext = encryptedBytes.subarray(0, encryptedBytes.length - 16);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, nonce);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
 // ── CLI ────────────────────────────────────────────────────────────────────
