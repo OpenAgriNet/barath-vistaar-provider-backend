@@ -122,22 +122,49 @@ export class PmkisanGrievanceService {
       );
 
       // ── Decrypt the response using the same AES-256-CBC keys ─────────
-      const encryptedOutput: string =
+      const outputField: string =
         rawApiResponse?.d?.output ?? rawApiResponse?.output ?? rawApiResponse;
 
-      if (typeof encryptedOutput === "string" && encryptedOutput.length > 0) {
-        decryptedOutput = decryptGrievanceResponse(encryptedOutput);
+      if (typeof outputField === "string" && outputField.length > 0) {
+        // Only attempt decrypt when the string looks like valid base64
+        // (no spaces, no newlines — plain error messages have those)
+        const looksEncrypted = /^[A-Za-z0-9+/]+=*$/.test(outputField.trim());
+
+        if (looksEncrypted) {
+          try {
+            decryptedOutput = decryptGrievanceResponse(outputField.trim());
+            console.log(
+              "PM Kisan Grievance decrypted output:",
+              JSON.stringify(decryptedOutput, null, 2),
+            );
+          } catch (decryptErr) {
+            console.error(
+              "PM Kisan Grievance decryption failed:",
+              decryptErr.message,
+            );
+            decryptedOutput = {
+              status: "False",
+              Message: `Decryption failed: ${decryptErr.message}`,
+              RawOutput: outputField,
+            };
+          }
+        } else {
+          // Server returned a plain-text error (e.g. NullReferenceException)
+          console.error(
+            "PM Kisan Grievance server returned plain-text error:",
+            outputField,
+          );
+          decryptedOutput = {
+            status: "False",
+            Message: outputField,
+          };
+        }
       } else {
         decryptedOutput = rawApiResponse;
       }
-
-      console.log(
-        "PM Kisan Grievance decrypted output:",
-        JSON.stringify(decryptedOutput, null, 2),
-      );
     } catch (error) {
       console.error(
-        "PM Kisan Grievance API error:",
+        "PM Kisan Grievance API call error:",
         error.message,
         error.response?.data ?? "",
       );
