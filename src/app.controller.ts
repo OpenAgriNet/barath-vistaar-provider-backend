@@ -73,17 +73,6 @@ export class AppController {
   async getContentFromIcar1(@Body() body: any) {
     console.log("search api calling");
 
-    if (body?.message?.order?.provider?.id === "pmkisan-greviance") {
-      console.log("INSIDE PMKISAN GRIEVANCE SEARCH...");
-      const grievanceStatusResponse =
-        await this.pmkisanGrievanceService.searchGrievanceStatus(body);
-      console.log(
-        "PM Kisan Grievance Search Response:",
-        JSON.stringify(grievanceStatusResponse, null, 2),
-      );
-      return grievanceStatusResponse;
-    }
-
     const categoryName = body?.message?.intent?.category?.descriptor?.name;
     console.log("categoryName", categoryName);
     const categoryCode =
@@ -116,6 +105,11 @@ export class AppController {
       categoryCode?.startsWith("pmfby")
     ) {
       categoryType = "pmfby";
+    } else if (
+      categoryCode === "grievance" ||
+      categoryNameLower === "grievance-agri"
+    ) {
+      categoryType = "grievance-agri";
     } else if (body?.message?.order?.provider?.id === "gfr-agri") {
       const itemId = body?.message?.order?.items?.[0]?.id;
       if (itemId === "gfr-agri-crop-recommendation") {
@@ -166,6 +160,10 @@ export class AppController {
       case "pmfby":
         console.log("Inside PMFBY search");
         return await this.appService.handlePmfbySearch(body);
+
+      case "grievance-agri":
+        console.log("Inside PMKISAN Grievance search");
+        return await this.pmkisanGrievanceService.searchGrievanceStatus(body);
 
       default:
         // Handle unknown category or return appropriate response

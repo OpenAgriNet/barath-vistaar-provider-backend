@@ -105,6 +105,10 @@ function decryptGrievanceResponse(encryptedBase64: string): any {
 export class PmkisanGrievanceService {
   private readonly logger = new Logger(PmkisanGrievanceService.name);
 
+  private getOrderFromBody(body: any): any {
+    return body?.message?.order ?? body?.message?.intent?.order;
+  }
+
   private getIdentityFromPerson(person: any): {
     regNumber?: string;
     aadhaarNumber?: string;
@@ -184,7 +188,8 @@ export class PmkisanGrievanceService {
   }
 
   async searchGrievanceStatus(body: any): Promise<any> {
-    const fulfillment = body?.message?.order?.fulfillments?.[0];
+    const order = this.getOrderFromBody(body);
+    const fulfillment = order?.fulfillments?.[0];
     const person = fulfillment?.customer?.person;
     const customerName = person?.name;
     const phone = fulfillment?.customer?.contact?.phone;
@@ -351,7 +356,8 @@ export class PmkisanGrievanceService {
   }
 
   async createGrievance(body: any): Promise<any> {
-    const fulfillment = body?.message?.order?.fulfillments?.[0];
+    const order = this.getOrderFromBody(body);
+    const fulfillment = order?.fulfillments?.[0];
     const person = fulfillment?.customer?.person;
     const customerName = person?.name;
     const phone = fulfillment?.customer?.contact?.phone;
