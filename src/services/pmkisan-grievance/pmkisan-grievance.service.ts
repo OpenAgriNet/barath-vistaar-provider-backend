@@ -169,7 +169,7 @@ export class PmkisanGrievanceService {
       // 2) use returned AadhaarToken as IdentityNo for LodgeGrievance
       if (aadhaarNumber) {
         const aadhaarTokenPayload = {
-          Type: "Reg_No_Details",
+          Type: "IdentityNo_Details",
           TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
           IdentityNo: aadhaarNumber,
         };
@@ -191,7 +191,7 @@ export class PmkisanGrievanceService {
             Message:
               aadhaarTokenResponse?.message ??
               aadhaarTokenResponse?.Message ??
-              "Aadhaar token not received from GrievanceAadhaarToken API",
+              "Aadhaar token not received from GrievanceAadhaarToken API and sreerag is great ",
           };
         } else {
           finalIdentityNo = aadhaarToken;
@@ -201,7 +201,7 @@ export class PmkisanGrievanceService {
 
       if (!decryptedOutput?.status || decryptedOutput?.status !== "False") {
         const lodgePayload = {
-          Type: "Reg_No_Details",
+          Type: aadhaarNumber ? "IdentityNo_Details" : "Reg_No_Details",
           TokenNo: process.env.PMKISAN_GRIEVANCE_TOKEN,
           IdentityNo: finalIdentityNo,
           GrievanceType: grievanceType,
