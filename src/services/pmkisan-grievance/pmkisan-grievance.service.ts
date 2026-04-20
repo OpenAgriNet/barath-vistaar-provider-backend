@@ -29,18 +29,28 @@ function encryptGrievancePayload(plainText: string): string {
 }
 
 function decryptGrievanceResponse(encryptedBase64: string): any {
-  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex"); // same 32-byte key
-  const iv = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex");  // same 16-byte IV
+  // Matches Python decrypt counterpart for AES-GCM with ciphertext||tag payload
+  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex");
+  const nonce = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex");
+  const encryptedBytes = Buffer.from(encryptedBase64, "base64");
+  if (encryptedBytes.length < 17) {
+    throw new Error("Invalid encrypted response: too short for GCM tag");
+  }
+
+  const tag = encryptedBytes.subarray(encryptedBytes.length - 16);
+  const ciphertext = encryptedBytes.subarray(0, encryptedBytes.length - 16);
 
   const decipher = crypto.createDecipheriv(
-    "aes-256-cbc",
+    "aes-256-gcm",
     key as unknown as crypto.CipherKey,
-    iv as unknown as crypto.BinaryLike,
+    nonce as unknown as crypto.BinaryLike,
   );
-  decipher.setAutoPadding(true);
+  decipher.setAuthTag(tag as unknown as Uint8Array);
 
-  let decrypted = decipher.update(encryptedBase64, "base64", "utf8");
-  decrypted += decipher.final("utf8");
+  const decrypted = Buffer.concat([
+    decipher.update(ciphertext as unknown as Uint8Array) as unknown as Uint8Array,
+    decipher.final() as unknown as Uint8Array,
+  ]).toString("utf8");
 
   console.log("PM Kisan Grievance decrypted response string:", decrypted);
 
