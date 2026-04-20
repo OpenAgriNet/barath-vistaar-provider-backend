@@ -86,16 +86,18 @@ export class PmkisanGrievanceService {
       GrievanceDescription: grievanceDescription,
     };
 
-    console.log(
-      "PM Kisan Grievance raw payload:",
-      JSON.stringify(rawPayload, null, 2),
-    );
+    console.log("=".repeat(60));
+    console.log("[PMKISAN GRIEVANCE] JSON being encrypted:");
+    console.log(JSON.stringify(rawPayload, null, 2));
+    console.log("=".repeat(60));
 
     // ── Encrypt using AES-256-CBC with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (IV) ──
     const encryptedText = encryptGrievancePayload(JSON.stringify(rawPayload));
     const requestBody = { EncryptedRequest: encryptedText };
 
-    console.log("PM Kisan Grievance encrypted request:", requestBody);
+    console.log("[PMKISAN GRIEVANCE] EncryptedRequest body sent to API:");
+    console.log(JSON.stringify(requestBody, null, 2));
+    console.log("=".repeat(60));
 
     // ── Call external PM Kisan Grievance API ─────────────────────────────
     const baseUrl = (process.env.PMKISAN_GRIEVANCE_BASE_URL ?? "").replace(
@@ -116,10 +118,9 @@ export class PmkisanGrievanceService {
       });
 
       const rawApiResponse = response.data;
-      console.log(
-        "PM Kisan Grievance raw API response:",
-        JSON.stringify(rawApiResponse, null, 2),
-      );
+      console.log("[PMKISAN GRIEVANCE] Raw API response:");
+      console.log(JSON.stringify(rawApiResponse, null, 2));
+      console.log("=".repeat(60));
 
       // ── Decrypt the response using the same AES-256-CBC keys ─────────
       const outputField: string =
@@ -132,14 +133,26 @@ export class PmkisanGrievanceService {
 
         if (looksEncrypted) {
           try {
+            console.log("[PMKISAN GRIEVANCE] Encrypted output from API:");
+            console.log(outputField.trim());
+            console.log("=".repeat(60));
+
             decryptedOutput = decryptGrievanceResponse(outputField.trim());
+
+            console.log("[PMKISAN GRIEVANCE] Decrypted output (raw string):");
             console.log(
-              "PM Kisan Grievance decrypted output:",
-              JSON.stringify(decryptedOutput, null, 2),
+              typeof decryptedOutput === "string"
+                ? decryptedOutput
+                : JSON.stringify(decryptedOutput),
             );
+            console.log("=".repeat(60));
+
+            console.log("[PMKISAN GRIEVANCE] Decrypted output (parsed JSON):");
+            console.log(JSON.stringify(decryptedOutput, null, 2));
+            console.log("=".repeat(60));
           } catch (decryptErr) {
             console.error(
-              "PM Kisan Grievance decryption failed:",
+              "[PMKISAN GRIEVANCE] Decryption failed:",
               decryptErr.message,
             );
             decryptedOutput = {
@@ -151,7 +164,7 @@ export class PmkisanGrievanceService {
         } else {
           // Server returned a plain-text error (e.g. NullReferenceException)
           console.error(
-            "PM Kisan Grievance server returned plain-text error:",
+            "[PMKISAN GRIEVANCE] Server returned plain-text error:",
             outputField,
           );
           decryptedOutput = {

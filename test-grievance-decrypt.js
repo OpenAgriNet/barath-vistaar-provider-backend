@@ -1,0 +1,65 @@
+/**
+ * PM Kisan Grievance — DECRYPT test
+ * Usage: node test-grievance-decrypt.js
+ *
+ * Paste the encrypted base64 string from the API response into ENCRYPTED_INPUT.
+ * Decrypts using AES-256-CBC with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (IV).
+ */
+
+const crypto = require("crypto");
+
+// ── Keys ───────────────────────────────────────────────────────────────────
+const GRIEVANCE_KEY_1 =
+  process.env.GRIEVANCE_KEY_1 ||
+  "B275D03C722F85941A287A08B27EA7C70BE436D9BC85A7EB60BFB53AFEA273C6";
+
+const GRIEVANCE_KEY_2 =
+  process.env.GRIEVANCE_KEY_2 || "62958328A844AAE69BDFFBFC7F3D9E1C";
+
+// ── Paste the encrypted base64 string here ─────────────────────────────────
+const ENCRYPTED_INPUT =
+  "dP8MTRIK+MKV+xbeHfVQMSEGFmC7ALStUEZypYngqk0nfay3KESWxNnv5lQi8z4y" +
+  "wlF2hVQcNOWCoYNtOccDz3MKbZNcGoiOHvZvYrK/AvCqseveth9zoyJWgSa4sFqi" +
+  "K0F0w4aQSquWhO3EEMzR9+wywnM+ZuusMyRaKNqWYpNm7zuHBSBVxNNsGQMh1Hwm" +
+  "P/XavkKV69XAMRonIElJagJbplN6vcErIokQJvYbYaE=";
+
+// ── Decrypt ────────────────────────────────────────────────────────────────
+function decrypt(encryptedBase64) {
+  const key = Buffer.from(GRIEVANCE_KEY_1, "hex"); // 32 bytes → AES-256
+  const iv  = Buffer.from(GRIEVANCE_KEY_2, "hex"); // 16 bytes → CBC IV
+
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  decipher.setAutoPadding(true);
+
+  let decrypted = decipher.update(encryptedBase64, "base64", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+console.log("\n=== ENCRYPTED INPUT ===");
+console.log(ENCRYPTED_INPUT);
+
+try {
+  const decryptedText = decrypt(ENCRYPTED_INPUT);
+
+  console.log("\n=== DECRYPTED STRING ===");
+  console.log(decryptedText);
+
+  try {
+    const parsed = JSON.parse(decryptedText);
+    console.log("\n=== PARSED JSON ===");
+    console.log(JSON.stringify(parsed, null, 2));
+  } catch {
+    console.log("\n[Note] Decrypted value is not JSON — shown as plain text above.");
+  }
+} catch (err) {
+  console.error("\n=== DECRYPTION FAILED ===");
+  console.error(err.message);
+  console.error(
+    "\nPossible reasons:\n" +
+    "  1. The encrypted string is not valid base64\n" +
+    "  2. The keys do not match what was used during encryption\n" +
+    "  3. The string is a plain-text error, not an encrypted response"
+  );
+}
