@@ -3,7 +3,8 @@
  * Usage: node test-grievance-decrypt.js
  *
  * Paste the encrypted base64 string from the API response into ENCRYPTED_INPUT.
- * Decrypts using AES-256-CBC with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (IV).
+ * Decrypts using AES-256-GCM with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (nonce).
+ * Input format must be base64(ciphertext + tag).
  */
 
 const crypto = require("crypto");
@@ -25,15 +26,17 @@ const ENCRYPTED_INPUT =
 
 // ── Decrypt ────────────────────────────────────────────────────────────────
 function decrypt(encryptedBase64) {
-  const key = Buffer.from(GRIEVANCE_KEY_1, "hex"); // 32 bytes → AES-256
-  const iv  = Buffer.from(GRIEVANCE_KEY_2, "hex"); // 16 bytes → CBC IV
-
-  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  decipher.setAutoPadding(true);
-
-  let decrypted = decipher.update(encryptedBase64, "base64", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+  const key = Buffer.from(GRIEVANCE_KEY_1, "hex"); // 32 bytes
+  const nonce  = Buffer.from(GRIEVANCE_KEY_2, "hex"); // nonce
+  const encryptedBytes = Buffer.from(encryptedBase64, "base64");
+  if (encryptedBytes.length < 17) {
+    throw new Error("Invalid encrypted payload: too short for GCM tag");
+  }
+  const tag = encryptedBytes.subarray(encryptedBytes.length - 16);
+  const ciphertext = encryptedBytes.subarray(0, encryptedBytes.length - 16);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, nonce);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
 // ── Run ────────────────────────────────────────────────────────────────────

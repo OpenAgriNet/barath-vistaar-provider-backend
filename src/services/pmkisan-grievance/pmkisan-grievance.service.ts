@@ -4,20 +4,28 @@ import * as crypto from "crypto";
 
 
 function encryptGrievancePayload(plainText: string): string {
-  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex"); // 32 bytes → AES-256
-  const iv = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex");  // 16 bytes → CBC IV
+  // Matches provided Python implementation:
+  // AES.new(key, AES.MODE_GCM, nonce=iv) and base64(ciphertext + tag)
+  const key = Buffer.from(process.env.GRIEVANCE_KEY_1, "hex"); // 32 bytes
+  const iv = Buffer.from(process.env.GRIEVANCE_KEY_2, "hex"); // nonce bytes
 
   const cipher = crypto.createCipheriv(
-    "aes-256-cbc",
+    "aes-256-gcm",
     key as unknown as crypto.CipherKey,
     iv as unknown as crypto.BinaryLike,
   );
-  cipher.setAutoPadding(true);
 
-  let encrypted = cipher.update(plainText, "utf8", "base64");
-  encrypted += cipher.final("base64");
+  const ciphertext = Buffer.concat([
+    cipher.update(plainText, "utf8") as unknown as Uint8Array,
+    cipher.final() as unknown as Uint8Array,
+  ]);
+  const tag = cipher.getAuthTag() as unknown as Uint8Array;
 
-  return encrypted;
+  // Python code sends ciphertext || tag
+  return Buffer.concat([
+    ciphertext as unknown as Uint8Array,
+    tag,
+  ]).toString("base64");
 }
 
 function decryptGrievanceResponse(encryptedBase64: string): any {
@@ -91,7 +99,7 @@ export class PmkisanGrievanceService {
     console.log(JSON.stringify(rawPayload, null, 2));
     console.log("=".repeat(60));
 
-    // ── Encrypt using AES-256-CBC with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (IV) ──
+    // ── Encrypt using AES-256-GCM with GRIEVANCE_KEY_1 (key) + GRIEVANCE_KEY_2 (nonce) ──
     const encryptedText = encryptGrievancePayload(JSON.stringify(rawPayload));
     const requestBody = { EncryptedRequest: encryptedText };
 
@@ -163,10 +171,6 @@ export class PmkisanGrievanceService {
           }
         } else {
           // Server returned a plain-text error (e.g. NullReferenceException)
-          console.error(
-            "[PMKISAN GRIEVANCE] Server returned plain-text error:",
-            outputField,
-          );
           decryptedOutput = {
             status: "False",
             Message: outputField,
