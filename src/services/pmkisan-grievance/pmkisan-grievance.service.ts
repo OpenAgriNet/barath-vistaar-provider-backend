@@ -220,7 +220,7 @@ export class PmkisanGrievanceService {
         };
         const aadhaarTokenResponse = await this.callEncryptedEndpoint(
           baseUrl,
-          "/GrievanceService.asmx/GrievanceAadhaarToken",
+          "/GrievanceAadhaarToken",
           aadhaarTokenPayload,
           "Aadhaar Token for Status",
         );
@@ -258,7 +258,7 @@ export class PmkisanGrievanceService {
         };
         decryptedOutput = await this.callEncryptedEndpoint(
           baseUrl,
-          "/GrievanceService.asmx/GrievanceStatusCheck",
+          "/GrievanceStatusCheck",
           statusPayload,
           "Grievance Status Check",
         );
@@ -398,7 +398,7 @@ export class PmkisanGrievanceService {
         };
         const aadhaarTokenResponse = await this.callEncryptedEndpoint(
           baseUrl,
-          "/GrievanceService.asmx/GrievanceAadhaarToken",
+          "/GrievanceAadhaarToken",
           aadhaarTokenPayload,
           "Aadhaar Token",
         );
@@ -432,7 +432,7 @@ export class PmkisanGrievanceService {
         };
         decryptedOutput = await this.callEncryptedEndpoint(
           baseUrl,
-          "/GrievanceService.asmx/LodgeGrievance",
+          "/LodgeGrievance",
           lodgePayload,
           "Create Grievance",
         );
