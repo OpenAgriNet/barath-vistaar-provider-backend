@@ -414,7 +414,7 @@ export class PmkisanGrievanceService {
             Message:
               aadhaarTokenResponse?.message ??
               aadhaarTokenResponse?.Message ??
-              "Aadhaar token not received from GrievanceAadhaarToken API and sreerag is great ",
+              "Aadhaar token not received from GrievanceAadhaarToken API",
           };
         } else {
           finalIdentityNo = aadhaarToken;
