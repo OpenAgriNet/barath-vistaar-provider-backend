@@ -8,6 +8,11 @@ export class GfrService {
 
   constructor(private readonly databaseService: DatabaseService) {}
 
+  /** GFR requests may use Beckn `message.intent` (search) or `message.order` (doc / some BAPs). */
+  private gfrMessageRoot(body: any) {
+    return body?.message?.order ?? body?.message?.intent;
+  }
+
   private buildContext(body: any) {
     return {
       ...body.context,
@@ -24,7 +29,7 @@ export class GfrService {
           descriptor: { name: "GFR Crop Registry" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: this.gfrMessageRoot(body)?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Registry" },
               items: [
                 {
@@ -52,9 +57,9 @@ export class GfrService {
 
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
-    // Extract lat/lon from fulfillments tags location
+    // Extract lat/lon from fulfillments tags location (order or intent)
     const tags =
-      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+      this.gfrMessageRoot(body)?.fulfillments?.[0]?.customer?.person?.tags ?? [];
     const locationTag = tags.find((t: any) => t?.location);
     const lat: number = locationTag?.location?.lat ?? null;
     const lon: number = locationTag?.location?.lon ?? null;
@@ -199,7 +204,7 @@ export class GfrService {
           descriptor: { name: "GFR Crop Registry" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: this.gfrMessageRoot(body)?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Registry" },
               items,
             },

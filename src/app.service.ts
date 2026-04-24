@@ -2938,6 +2938,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
   async fetchGFRDetails(body: any): Promise<any> {
     console.log("INSIDE fetchGFRDetails...");
 
+    const gfrRoot = body?.message?.order ?? body?.message?.intent;
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
     const baseContext = () => ({
@@ -2953,7 +2954,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           descriptor: { name: "GFR Crop Registry" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: gfrRoot?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Registry" },
               items: [
                 {
@@ -2977,7 +2978,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     // Extract stateId tag from fulfillments
     const tags =
-      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+      gfrRoot?.fulfillments?.[0]?.customer?.person?.tags ?? [];
     const getTagValue = (code: string) =>
       tags.find((t: any) => t?.descriptor?.code === code)?.value;
 
@@ -3081,7 +3082,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           descriptor: { name: "GFR Crop Registry" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: gfrRoot?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Registry" },
               items,
             },
@@ -3094,6 +3095,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
   async fetchGFRRecommendation(body: any): Promise<any> {
     console.log("INSIDE fetchGFRRecommendation...");
 
+    const gfrRoot = body?.message?.order ?? body?.message?.intent;
     const baseUrl = process.env.SOIL_HEALTH_BASE_URL;
 
     const baseContext = () => ({
@@ -3109,7 +3111,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           descriptor: { name: "GFR Crop Recommendation" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: gfrRoot?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Recommendation" },
               items: [
                 {
@@ -3133,7 +3135,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
 
     // Extract tags from fulfillments
     const tags =
-      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+      gfrRoot?.fulfillments?.[0]?.customer?.person?.tags ?? [];
     const getTagValue = (code: string) =>
       tags.find((t: any) => t?.descriptor?.code === code)?.value;
 
@@ -3297,7 +3299,7 @@ eKYC - ${eKYC_Status == "Y" ? "Done" : "Not Done"}`;
           descriptor: { name: "GFR Crop Recommendation" },
           providers: [
             {
-              id: body?.message?.order?.provider?.id ?? "gfr-agri",
+              id: gfrRoot?.provider?.id ?? "gfr-agri",
               descriptor: { name: "GFR Crop Recommendation" },
               items: [
                 {
