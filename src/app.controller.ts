@@ -80,59 +80,11 @@ export class AppController {
     console.log("categoryCode", categoryCode);
     const categoryNameLower = categoryName?.toLowerCase();
     console.log("categoryNameLower", categoryNameLower);
-    // Determine the category type for switch case
-    let categoryType: string;
 
-    if (categoryName === "knowledge-advisory") {
-      categoryType = "knowledge-advisory";
-    } else if (categoryName === "Weather-Forecast") {
-      categoryType = "weather-forecast";
-    } else if (categoryName === "Weather-Forecast-Mausamgram") {
-      categoryType = "weather-forecast-mausamgram";
-    } else if (
-      categoryCode === "schemes-agri" ||
-      categoryNameLower === "schemes-agri"
-    ) {
-      categoryType = "schemes-agri";
-    } else if (
-      categoryCode === "icar-schemes" ||
-      categoryNameLower === "icar-schemes"
-    ) {
-      categoryType = "icar-schemes";
-    } else if (
-      categoryCode === "pmfby" ||
-      categoryNameLower === "pmfby" ||
-      categoryCode?.startsWith("pmfby")
-    ) {
-      categoryType = "pmfby";
-    } else if (
-      categoryCode === "grievance" ||
-      categoryNameLower === "grievance-agri"
-    ) {
-      categoryType = "grievance-agri";
-    } else if (body?.message?.order?.provider?.id === "gfr-agri") {
-      const itemId = body?.message?.order?.items?.[0]?.id;
-      if (itemId === "gfr-agri-crop-recommendation") {
-        console.log("INSIDE GFR CROP RECOMMENDATION SEARCH...");
-        const response = await this.appService.fetchGFRRecommendation(body);
-        console.log(
-          "GFR recommendation final response-->>",
-          JSON.stringify(response, null, 2),
-        );
-        return response;
-      } else {
-        console.log("INSIDE GFR CROP REGISTRY SEARCH...");
-        return this.gfrService.fetchCropRegistry(body);
-      }
-    } else if (categoryCode === "price-discovery") {
-      const itemCode =
-        body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
-      categoryType = itemCode === "mandi" ? "mandi" : "unknown";
-    } else {
-      categoryType = "unknown";
-    }
+    const route = this.resolveMobilitySearchRoute(body);
+    console.log("mobilitySearchRoute", route);
 
-    switch (categoryType) {
+    switch (route) {
       case "knowledge-advisory":
         console.log("Inside Knowledge Advisory search");
         return this.appService.searchForIntentQuery(body);
@@ -165,9 +117,76 @@ export class AppController {
         console.log("Inside PMKISAN Grievance search");
         return await this.pmkisanGrievanceService.searchGrievanceStatus(body);
 
+      case "gfr-crop-registry": {
+        console.log("INSIDE GFR CROP REGISTRY SEARCH...");
+        return this.gfrService.fetchCropRegistry(body);
+      }
+
+      case "gfr-crop-recommendation": {
+        console.log("INSIDE GFR CROP RECOMMENDATION SEARCH...");
+        const gfrRecResponse = await this.appService.fetchGFRRecommendation(body);
+        console.log(
+          "GFR recommendation final response-->>",
+          JSON.stringify(gfrRecResponse, null, 2),
+        );
+        return gfrRecResponse;
+      }
+
       default:
-        // Handle unknown category or return appropriate response
         return this.appService.searchForIntentQuery(body);
+    }
+  }
+
+  /**
+   * Ordered route resolution for /mobility/search (first match wins).
+   * GFR item ids: gfr-agri-crop-recommendation vs gfr-agri-crop-registy / default → registry.
+   */
+  private resolveMobilitySearchRoute(body: any): string {
+    const categoryName = body?.message?.intent?.category?.descriptor?.name;
+    const categoryCode =
+      body?.message?.intent?.category?.descriptor?.code?.toLowerCase();
+    const categoryNameLower = categoryName?.toLowerCase();
+    const firstItemId =
+      body?.message?.order?.items?.[0]?.id ??
+      body?.message?.intent?.items?.[0]?.id ??
+      body?.message?.intent?.item?.id;
+    const gfrProviderId =
+      body?.message?.order?.provider?.id ??
+      body?.message?.intent?.provider?.id;
+    const itemDescriptorCode =
+      body?.message?.intent?.item?.descriptor?.code?.toLowerCase();
+
+    switch (true) {
+      case categoryName === "knowledge-advisory":
+        return "knowledge-advisory";
+      case categoryName === "Weather-Forecast":
+        return "weather-forecast";
+      case categoryName === "Weather-Forecast-Mausamgram":
+        return "weather-forecast-mausamgram";
+      case categoryCode === "schemes-agri" || categoryNameLower === "schemes-agri":
+        return "schemes-agri";
+      case categoryCode === "icar-schemes" || categoryNameLower === "icar-schemes":
+        return "icar-schemes";
+      case (
+        categoryCode === "pmfby" ||
+        categoryNameLower === "pmfby" ||
+        !!categoryCode?.startsWith("pmfby")
+      ):
+        return "pmfby";
+      case categoryCode === "grievance" || categoryNameLower === "grievance-agri":
+        return "grievance-agri";
+      case gfrProviderId === "gfr-agri":
+        switch (firstItemId) {
+          case "gfr-agri-crop-recommendation":
+            return "gfr-crop-recommendation";
+          case "gfr-agri-crop-registy":
+          default:
+            return "gfr-crop-registry";
+        }
+      case categoryCode === "price-discovery":
+        return itemDescriptorCode === "mandi" ? "mandi" : "unknown";
+      default:
+        return "unknown";
     }
   }
 
