@@ -15,6 +15,7 @@ import { PmfbyService } from './services/pmfby/pmfby.service';
 import { WeatherForecastService } from './services/weatherforecast/weatherforecast.service';
 import { DatabaseService } from './services/weatherforecast/database.service';
 import { MandiService } from './services/mandi/mandi.service';
+import { SathiService } from './services/sathi/sathi.service';
 
 
 @Module({
@@ -28,6 +29,6 @@ import { MandiService } from './services/mandi/mandi.service';
     AdminModule, ProviderModule, SeekerModule,
   ],
   controllers: [AppController],
-  providers: [AppService, LoggerService, HasuraService, S3Service, SeekerService, PmfbyService, WeatherForecastService, DatabaseService, MandiService],
+  providers: [AppService, LoggerService, HasuraService, S3Service, SeekerService, PmfbyService, WeatherForecastService, DatabaseService, MandiService, SathiService],
 })
 export class AppModule {}

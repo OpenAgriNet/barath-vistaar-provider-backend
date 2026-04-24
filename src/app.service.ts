@@ -36,6 +36,7 @@ import { AuthService } from "./auth/auth.service";
 import { PmfbyService } from "./services/pmfby/pmfby.service";
 import { WeatherForecastService } from "./services/weatherforecast/weatherforecast.service";
 import { MandiService } from "./services/mandi/mandi.service";
+import { SathiService } from "./services/sathi/sathi.service";
 const file = fs.readFileSync("./course.json", "utf8");
 const courseData = JSON.parse(file);
 
@@ -66,7 +67,8 @@ export class AppService {
     private readonly configService: ConfigService,
     private readonly pmfbyService: PmfbyService,
     private readonly weatherForecastService: WeatherForecastService,
-    private readonly mandiService: MandiService
+    private readonly mandiService: MandiService,
+    private readonly sathiService: SathiService
   ) { }
 
   private nameSpace = process.env.HASURA_NAMESPACE;
@@ -93,6 +95,71 @@ export class AppService {
 
   getHello(): string {
     return "Icar-network Backend is running!!";
+  }
+
+  private normalizeText(value: any): string {
+    return value === undefined || value === null ? "" : String(value).trim();
+  }
+
+  private toTitleCase(value: string): string {
+    return value
+      .trim()
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
+  }
+
+  private isSathiSeedRequest(body: any): boolean {
+    return (
+      body &&
+      typeof body.crop === "string" &&
+      typeof body.stateCode === "string" &&
+      typeof body.district === "string"
+    );
+  }
+
+  async handleSathiSeedAvailabilityRequest(body: any) {
+    const crop = this.normalizeText(body.crop);
+    const stateCode = this.normalizeText(body.stateCode);
+    const district = this.normalizeText(body.district);
+    const variety = this.normalizeText(body.variety);
+
+    if (!crop) {
+      throw new HttpException("Crop not found", HttpStatus.BAD_REQUEST);
+    }
+    if (!district) {
+      throw new HttpException("District not found", HttpStatus.BAD_REQUEST);
+    }
+
+    const districtCode = await this.sathiService.getDistrictCode(stateCode, district);
+    const cropCode = await this.sathiService.getCropCode(crop);
+    const producerCodes = await this.sathiService.getProducerCodes(stateCode, districtCode);
+
+    if (!producerCodes?.length) {
+      return {
+        crop: crop.toLowerCase(),
+        district: this.toTitleCase(district),
+        results: [],
+      };
+    }
+
+    const rawAvailability = await this.sathiService.getSeedAvailabilityForProducers(
+      producerCodes,
+      cropCode,
+      stateCode,
+      districtCode
+    );
+
+    const results = this.sathiService.aggregateSeedAvailability(
+      rawAvailability,
+      variety || undefined
+    );
+
+    return {
+      crop: crop.toLowerCase(),
+      district: this.toTitleCase(district),
+      results,
+    };
   }
 
   async getCoursesFromFln(body: {
@@ -278,6 +345,9 @@ export class AppService {
     context: components["schemas"]["Context"];
     message: { intent: components["schemas"]["Intent"] };
   }) {
+    if (this.isSathiSeedRequest(body)) {
+      return this.handleSathiSeedAvailabilityRequest(body);
+    }
     const intent: any = body.message.intent;
 
     // destructuring the intent
