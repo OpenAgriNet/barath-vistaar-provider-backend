@@ -1,5 +1,11 @@
 import { Logger } from '@nestjs/common';
-import { generateTelemetryMid, getTelemetryEndpoint } from './telemetry.config';
+import axios, { AxiosError } from 'axios';
+import {
+  generateTelemetryMid,
+  getTelemetryEndpoint,
+  resolveTelemetryChannel,
+  resolveTelemetryPdata,
+} from './telemetry.config';
 import { isTelemetryReady } from './telemetry.bootstrap';
 import {
   getTelemetryFlowState,
@@ -85,12 +91,8 @@ function buildOeEvent(
     ver: '2.2',
     mid: generateTelemetryMid(),
     ets: Date.now(),
-    channel: process.env.TELEMETRY_CHANNEL || 'beckn-network-provider',
-    pdata: {
-      id: process.env.TELEMETRY_PDATA_ID || 'beckn-onix-network-provider',
-      ver: process.env.TELEMETRY_PDATA_VER || 'v1.0',
-      pid: process.env.TELEMETRY_PDATA_PID || 'network-provider',
-    },
+    channel: resolveTelemetryChannel(ctx),
+    pdata: resolveTelemetryPdata(ctx),
     gdata: {
       id: ctx.context.service_name ?? 'unknown',
       ver: 'v1.0',
@@ -117,22 +119,45 @@ async function dispatchOeBatch(events: Record<string, unknown>[]): Promise<void>
 
   const now = Date.now();
 
+  const batchMid = generateTelemetryMid();
+  const payload = {
+    id: 'ekstep.telemetry',
+    ver: '2.2',
+    ets: now,
+    mid: batchMid,
+    syncts: now,
+    events,
+  };
+
   try {
-    await fetch(getTelemetryEndpoint(), {
-      method: 'POST',
+    const response = await axios.post(getTelemetryEndpoint(), payload, {
       headers,
-      body: JSON.stringify({
-        id: 'ekstep.telemetry',
-        ver: '2.2',
-        ets: now,
-        mid: generateTelemetryMid(),
-        syncts: now,
-        events,
-      }),
+      timeout: 15000,
+      validateStatus: () => true,
     });
+
+    if (response.status < 200 || response.status >= 300) {
+      const body =
+        typeof response.data === 'string'
+          ? response.data
+          : JSON.stringify(response.data ?? '');
+      oeLogger.error(
+        `OE telemetry dispatch failed mid=${batchMid} status=${response.status} events=${events.length} body=${body.slice(0, 500)}`,
+      );
+      return;
+    }
+
+    if (isTelemetryDebugEnabled()) {
+      oeLogger.log(
+        `OE telemetry dispatched mid=${batchMid} events=${events.length} status=${response.status}`,
+      );
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    oeLogger.error(`Failed to dispatch OE telemetry batch: ${message}`);
+    const ax = error as AxiosError;
+    const message = ax.message || String(error);
+    oeLogger.error(
+      `OE telemetry dispatch error mid=${batchMid} events=${events.length}: ${message}`,
+    );
   }
 }
 
@@ -163,7 +188,7 @@ export function emitOeStart(ctx: TelemetryContext): void {
 
   if (isTelemetryDebugEnabled()) {
     oeLogger.log(
-      `OE_START service=${ctx.context.service_name} route=${ctx.context.route_name}`,
+      `OE_START service=${ctx.context.service_name} route=${ctx.context.route_name} channel=${resolveTelemetryChannel(ctx)} explicitCorrelation=${ctx.hasExplicitCorrelation} payloadChannel=${ctx.payloadChannel ?? 'none'}`,
     );
   }
 

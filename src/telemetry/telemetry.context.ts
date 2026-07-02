@@ -13,6 +13,10 @@ import {
 export interface TelemetryContext {
   sessionId: string;
   questionId: string;
+  /** True when both session_id and question_id are present in Beckn context/intent tags. */
+  hasExplicitCorrelation: boolean;
+  /** Channel from payload tags — only set when session_id + question_id tags are present. */
+  payloadChannel?: string;
   context: Record<string, string>;
 }
 
@@ -34,6 +38,7 @@ export function getTelemetryContext(): TelemetryContext {
     telemetryStorage.getStore()?.context ?? {
       sessionId: 'unknown',
       questionId: 'unknown',
+      hasExplicitCorrelation: false,
       context: {},
     }
   );
@@ -81,6 +86,12 @@ export function extractBecknContext(req: {
 
   const transactionId = String(becknContext.transaction_id ?? uuidv4());
   const messageId = String(becknContext.message_id ?? uuidv4());
+  const hasExplicitCorrelation = Boolean(
+    mergedTags.session_id && mergedTags.question_id,
+  );
+  const payloadChannel = hasExplicitCorrelation
+    ? mergedTags.channel?.trim() || undefined
+    : undefined;
   const sessionId = mergedTags.session_id ?? transactionId;
   const questionId = mergedTags.question_id ?? messageId;
 
@@ -98,6 +109,8 @@ export function extractBecknContext(req: {
   return {
     sessionId,
     questionId,
+    hasExplicitCorrelation,
+    payloadChannel,
     context: {
       session_id: sessionId,
       question_id: questionId,
