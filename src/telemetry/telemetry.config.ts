@@ -1,3 +1,9 @@
+import { randomUUID } from 'crypto';
+
+export function generateTelemetryMid(): string {
+  return randomUUID();
+}
+
 export function getTelemetryEndpoint(): string {
   if (process.env.TELEMETRY_ENDPOINT) {
     return process.env.TELEMETRY_ENDPOINT;

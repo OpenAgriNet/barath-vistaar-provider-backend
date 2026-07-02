@@ -1,6 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { generateMid } from 'telemetry-wrap';
-import { getTelemetryEndpoint } from './telemetry.config';
+import { generateTelemetryMid, getTelemetryEndpoint } from './telemetry.config';
 import { isTelemetryReady } from './telemetry.bootstrap';
 import {
   getTelemetryFlowState,
@@ -84,7 +83,7 @@ function buildOeEvent(
   return {
     eid,
     ver: '2.2',
-    mid: generateMid(),
+    mid: generateTelemetryMid(),
     ets: Date.now(),
     channel: process.env.TELEMETRY_CHANNEL || 'beckn-network-provider',
     pdata: {
@@ -126,7 +125,7 @@ async function dispatchOeBatch(events: Record<string, unknown>[]): Promise<void>
         id: 'ekstep.telemetry',
         ver: '2.2',
         ets: now,
-        mid: generateMid(),
+        mid: generateTelemetryMid(),
         syncts: now,
         events,
       }),

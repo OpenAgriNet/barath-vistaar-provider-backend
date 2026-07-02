@@ -1,11 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { $t } from '@project-sunbird/telemetry-sdk';
-import {
-  TelemetryWrap,
-  generateMid,
-  type ApiLifecycleEvent,
-} from 'telemetry-wrap';
+import { TelemetryWrap, type ApiLifecycleEvent } from 'telemetry-wrap';
 import { isTelemetryReady } from './telemetry.bootstrap';
+import { generateTelemetryMid } from './telemetry.config';
 
 export type TelemetryApiCallType = 'bpp_network_api_call' | 'ext_api_call';
 
@@ -59,7 +56,7 @@ export function logTelemetryApiCall(
         message: `${event.method} ${event.url}`,
         params: buildApiCallParams(event),
       },
-      { id: generateMid(), type: 'Event' },
+      { id: generateTelemetryMid(), type: 'Event' },
     );
 
     if (event.isEmptyResponse) {
