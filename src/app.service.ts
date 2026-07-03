@@ -1639,28 +1639,28 @@ export class AppService {
 
       // TODO: comment for now implement OTP later
       // Verify OTP
-      this.logger.log("Calling verifyOTP", logCtx);
-      const verifyResponse = await this.verifyOTP(
-        regNumber,
-        orderId,
-        undefined,
-        transactionId,
-      );
+      // this.logger.log("Calling verifyOTP", logCtx);
+      // const verifyResponse = await this.verifyOTP(
+      //   regNumber,
+      //   orderId,
+      //   undefined,
+      //   transactionId,
+      // );
 
-      if (verifyResponse.status !== "OK") {
-        this.logger.warn(
-          `OTP verification failed | status=${verifyResponse.status}`,
-          logCtx,
-        );
-        return this.createStatusErrorResponse(
-          body.context,
-          "invalid_otp",
-          "Invalid or expired OTP. Please try again.",
-        );
-      }
+      // if (verifyResponse.status !== "OK") {
+      //   this.logger.warn(
+      //     `OTP verification failed | status=${verifyResponse.status}`,
+      //     logCtx,
+      //   );
+      //   return this.createStatusErrorResponse(
+      //     body.context,
+      //     "invalid_otp",
+      //     "Invalid or expired OTP. Please try again.",
+      //   );
+      // }
 
-      this.logger.log("OTP validation successful", logCtx);
-      // this.logger.log("✅ OTP IS SKIPPED!");
+      // this.logger.log("OTP validation successful", logCtx);
+      this.logger.log("OTP verification skipped for PM-KISAN installment status", logCtx);
       // Clear OTP after successful validation
       // this.clearTempOTPStore();
 
