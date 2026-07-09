@@ -21,6 +21,8 @@ export interface OeItemResponseDetails {
   serviceName: string;
   method: string;
   url: string;
+  /** Optional override for networkApiDetails.apiService (e.g. resolved host name) */
+  apiService?: string;
   requestPayload?: unknown;
   responsePayload?: unknown;
   statusCode: number;
@@ -311,11 +313,13 @@ export function emitOeItemResponse(
   details: OeItemResponseDetails,
 ): void {
   const useCaseName = ctx.context.service_name ?? details.serviceName ?? 'unknown';
-  const targetId = resolveApiTargetId(
-    details.itemType,
-    details.url,
-    details.requestPayload,
-  );
+  const targetId =
+    details.apiService ||
+    resolveApiTargetId(
+      details.itemType,
+      details.url,
+      details.requestPayload,
+    );
   const eks = {
     target: {
       id: targetId,
@@ -331,6 +335,7 @@ export function emitOeItemResponse(
         question_id: ctx.questionId,
         method: details.method,
         url: details.url,
+        // For EXT_API this must be the real outbound body/query, not a Beckn envelope
         input: details.requestPayload ?? {},
         output: details.responsePayload ?? {},
         success: details.success,

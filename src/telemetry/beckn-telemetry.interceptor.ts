@@ -18,7 +18,6 @@ import {
   emitOeStart,
 } from './oe-telemetry.emitter';
 import {
-  buildBecknEnvelope,
   captureResponsePayload,
   isApiSuccess,
 } from './telemetry-payload.builder';
@@ -82,6 +81,12 @@ export class BecknTelemetryInterceptor implements NestInterceptor {
     });
   }
 
+  /**
+   * BPP / Beckn network step.
+   * input / output = the real Beckn JSON only (req.body / response body).
+   * Do not wrap with route_name, use_case, beckn meta envelopes, etc.
+   * Method/url/status already live on networkApiDetails top-level fields.
+   */
   private captureInbound(
     req: { method: string; originalUrl?: string; url?: string; body?: unknown },
     ctx: TelemetryContext,
@@ -98,15 +103,18 @@ export class BecknTelemetryInterceptor implements NestInterceptor {
       const effectiveStatusCode = isEmpty ? 404 : statusCode;
       const success = isApiSuccess(effectiveStatusCode, responseBody, error);
 
+      // Actual Beckn request body only — no buildBecknEnvelope / extra fields
+      const becknRequest =
+        req.body === undefined || req.body === null
+          ? {}
+          : sanitisePayload(req.body);
+
       emitOeItemResponse(ctx, {
         itemType: 'bpp_network_api_call',
         serviceName: ctx.context.service_name ?? 'unknown',
         method: req.method,
         url,
-        requestPayload: buildBecknEnvelope(
-          ctx,
-          sanitisePayload(req.body),
-        ),
+        requestPayload: becknRequest,
         responsePayload: isEmpty
           ? { _empty: true }
           : sanitisePayload(capturedResponse),

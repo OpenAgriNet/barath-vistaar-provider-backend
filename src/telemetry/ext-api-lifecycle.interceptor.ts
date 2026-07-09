@@ -9,6 +9,7 @@ import { catchError, tap } from 'rxjs/operators';
 import { isEmptyBody } from 'telemetry-wrap';
 import { getTelemetryContext } from './telemetry.context';
 import { logTelemetryApiCall } from './telemetry.logger';
+import { buildActualExtApiRequestPayload } from './telemetry-payload.builder';
 import { sanitisePayload } from './telemetry-sanitiser';
 
 @Injectable()
@@ -35,7 +36,13 @@ export class ExtApiLifecycleInterceptor implements NestInterceptor {
             requestTime: new Date(requestTime).toISOString(),
             url: response?.config?.url ?? 'unknown',
             method: (response?.config?.method ?? 'GET').toUpperCase(),
-            requestPayload: sanitisePayload(response?.config?.data),
+            // Actual outbound body/query only (not a Beckn envelope)
+            requestPayload: sanitisePayload(
+              buildActualExtApiRequestPayload({
+                data: response?.config?.data,
+                params: response?.config?.params,
+              }),
+            ),
             // telemetry-wrap types require string; null means absent from payload
             sessionId: ctx.sessionId as unknown as string,
             questionId: ctx.questionId as unknown as string,
@@ -60,7 +67,12 @@ export class ExtApiLifecycleInterceptor implements NestInterceptor {
             requestTime: new Date(requestTime).toISOString(),
             url: err?.config?.url ?? 'unknown',
             method: (err?.config?.method ?? 'GET').toUpperCase(),
-            requestPayload: sanitisePayload(err?.config?.data),
+            requestPayload: sanitisePayload(
+              buildActualExtApiRequestPayload({
+                data: err?.config?.data,
+                params: err?.config?.params,
+              }),
+            ),
             sessionId: ctx.sessionId as unknown as string,
             questionId: ctx.questionId as unknown as string,
             responseStatus: err?.response?.status ?? 0,

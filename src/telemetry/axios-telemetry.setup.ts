@@ -4,11 +4,9 @@ import { getTelemetryContext } from './telemetry.context';
 import { getTelemetryEndpoint } from './telemetry.config';
 import { emitOeItemResponse } from './oe-telemetry.emitter';
 import {
-  buildExtApiEnvelope,
+  buildActualExtApiRequestPayload,
   captureResponsePayload,
-  extractGraphqlFromAxiosData,
   isApiSuccess,
-  parseAxiosRequestData,
 } from './telemetry-payload.builder';
 import { resolveExternalServiceName } from './service-name.resolver';
 import { sanitisePayload } from './telemetry-sanitiser';
@@ -39,19 +37,16 @@ function logOutboundCall(
   const url = config.url ?? 'unknown';
   const method = (config.method ?? 'GET').toUpperCase();
   const useCaseName = ctx.context.service_name ?? 'unknown';
+  // Prefer explicit service name from URL host mapping (for apiService field)
   const downstreamService = resolveExternalServiceName(url);
-  const rawRequest = parseAxiosRequestData(config.data ?? config.params);
-  // Sanitise body and GraphQL variables separately — graphql was previously
-  // taken from the raw request and leaked unmasked phones / tokens.
-  const requestBody = sanitisePayload(rawRequest);
-  const graphqlRaw = extractGraphqlFromAxiosData(rawRequest);
-  const graphql = graphqlRaw
-    ? (sanitisePayload(graphqlRaw) as {
-        operation?: string;
-        query?: string;
-        variables?: unknown;
-      })
-    : undefined;
+
+  // Actual payload sent to the external API (body and/or query params) —
+  // NOT a Beckn envelope. Meta (method/url/service) already lives on networkApiDetails.
+  const actualRequestPayload = buildActualExtApiRequestPayload({
+    data: config.data,
+    params: config.params,
+  });
+
   const responseBody = captureResponsePayload(data);
   // Empty payload on HTTP 200 is captured as 404 (not found / no data)
   const isEmpty = status === 200 && isEmptyBody(data);
@@ -59,23 +54,14 @@ function logOutboundCall(
   const success = isApiSuccess(effectiveStatus, data, error);
 
   try {
-    // Sanitise the full envelope so no nested branch (body / graphql / tags) skips masking
-    const requestPayload = sanitisePayload(
-      buildExtApiEnvelope(ctx, {
-        url,
-        method,
-        downstreamService,
-        requestBody,
-        graphql,
-      }),
-    );
-
     emitOeItemResponse(ctx, {
       itemType: 'ext_api_call',
       serviceName: useCaseName,
+      apiService: downstreamService,
       method,
       url,
-      requestPayload,
+      // Real external API request body/query params only
+      requestPayload: sanitisePayload(actualRequestPayload),
       responsePayload: isEmpty
         ? { _empty: true }
         : sanitisePayload(responseBody),
