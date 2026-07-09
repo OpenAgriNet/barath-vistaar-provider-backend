@@ -1,3 +1,15 @@
+type TagListItem = {
+  descriptor?: { code?: string; name?: string };
+  value?: string;
+  display?: boolean;
+};
+
+type PersonTag = {
+  descriptor?: { code?: string; name?: string };
+  list?: TagListItem[];
+  value?: string;
+};
+
 type BecknBody = {
   context?: { domain?: string; action?: string };
   message?: {
@@ -10,10 +22,21 @@ type BecknBody = {
     order?: {
       provider?: { id?: string };
       items?: Array<{ id?: string }>;
+      fulfillments?: Array<{
+        customer?: {
+          person?: { tags?: PersonTag[] };
+          contact?: { phone?: string };
+        };
+      }>;
     };
   };
 };
 
+/**
+ * Telemetry service_name / use case labels.
+ * Keep specific flows distinct (e.g. pmkisan-greviance vs pmfby-greviance),
+ * do not collapse them into a parent bucket.
+ */
 const ROUTE_TO_SERVICE: Record<string, string> = {
   'knowledge-advisory': 'advisory',
   'weather-forecast': 'imd',
@@ -23,14 +46,17 @@ const ROUTE_TO_SERVICE: Record<string, string> = {
   mandi: 'mandi',
   'mandi-location': 'mandi',
   pmfby: 'pmfby',
-  'grievance-agri': 'grievance',
+  'pmfby-agri': 'pmfby',
+  // Grievances — keep separate use cases (provider ids use historical "greviance" spelling)
+  'grievance-agri': 'grievance-agri',
+  'pmkisan-greviance': 'pmkisan-greviance',
+  'pmfby-grievance': 'pmfby-greviance',
+  // PM-KISAN non-scheme flows
+  'pmkisan-installment-status': 'pmkisan-installment-status',
   'gfr-crop-registry': 'gfr',
   'gfr-crop-recommendation': 'gfr',
   smam: 'smam',
   'sathi-seed': 'sathi',
-  'pmkisan-greviance': 'pmkisan',
-  'pmfby-grievance': 'pmfby',
-  'pmfby-agri': 'pmfby',
   'shc-discovery': 'shc',
 };
 
@@ -40,15 +66,110 @@ const ROUTE_NAME_BY_SERVICE: Record<string, string> = {
   imd: 'weather-forecast',
   advisory: 'knowledge-advisory',
   pmfby: 'pmfby',
+  'pmfby-greviance': 'pmfby-grievance',
   gfr: 'gfr-agri',
   smam: 'smam',
   sathi: 'sathi-seed',
   shc: 'shc-discovery',
-  grievance: 'grievance-agri',
-  pmkisan: 'pmkisan-greviance',
+  'grievance-agri': 'grievance-agri',
+  'pmkisan-greviance': 'pmkisan-greviance',
+  'pmkisan-installment-status': 'pmkisan-installment-status',
 };
 
+/** Known scheme-discovery category codes (intent.category.descriptor.code). */
+const SCHEME_CATEGORY_CODES = new Set([
+  'schemes-agri',
+  'scheme-agri',
+  'icar-schemes',
+  'agri-schemes',
+  'schemes',
+]);
+
+/**
+ * Scheme catalogue / discovery search: only when category code (or name) is an
+ * explicit scheme code like "schemes-agri". Domain schemes:vistaar alone is NOT enough.
+ */
+export function isSchemeCategory(body?: BecknBody): boolean {
+  if (!body) return false;
+  const code = String(
+    body.message?.intent?.category?.descriptor?.code ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  const name = String(
+    body.message?.intent?.category?.descriptor?.name ?? '',
+  )
+    .trim()
+    .toLowerCase();
+
+  if (SCHEME_CATEGORY_CODES.has(code) || SCHEME_CATEGORY_CODES.has(name)) {
+    return true;
+  }
+  // Other scheme-* category codes (not grievance / pmkisan)
+  if (
+    (code.includes('scheme') || name.includes('scheme')) &&
+    !code.includes('grievance') &&
+    !name.includes('grievance')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * PM-KISAN installment / status / send-OTP / get-details style requests:
+ * person.tags → reg-details → reg-number (provider/item often empty).
+ * These are NOT scheme discovery even if domain is schemes:vistaar.
+ */
+export function hasPmkisanInstallmentStatusSignal(body?: BecknBody): boolean {
+  if (!body) return false;
+
+  const fulfillments = body.message?.order?.fulfillments ?? [];
+  for (const fulfillment of fulfillments) {
+    const tags = fulfillment?.customer?.person?.tags;
+    if (!Array.isArray(tags)) continue;
+
+    for (const tag of tags) {
+      const groupCode = String(tag?.descriptor?.code ?? '').toLowerCase();
+      if (groupCode !== 'reg-details') continue;
+
+      const list = tag.list;
+      if (!Array.isArray(list)) continue;
+
+      for (const item of list) {
+        const code = String(item?.descriptor?.code ?? '').toLowerCase();
+        const value = String(item?.value ?? '').trim();
+        if (code === 'reg-number' && value.length > 0) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function resolveSchemeRoute(body: BecknBody): string {
+  const code = String(
+    body.message?.intent?.category?.descriptor?.code ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  if (code === 'icar-schemes') return 'icar-schemes';
+  return 'schemes-agri';
+}
+
 function resolveMobilityRoute(body: BecknBody): string {
+  // 1) Scheme discovery ONLY when intent.category.descriptor.code is schemes-agri (etc.)
+  if (isSchemeCategory(body)) {
+    return resolveSchemeRoute(body);
+  }
+
+  // 2) PM-KISAN status / OTP / installment (no scheme category code)
+  if (hasPmkisanInstallmentStatusSignal(body)) {
+    return 'pmkisan-installment-status';
+  }
+
   const categoryName = body?.message?.intent?.category?.descriptor?.name;
   const categoryCode =
     body?.message?.intent?.category?.descriptor?.code?.toLowerCase();
@@ -73,18 +194,28 @@ function resolveMobilityRoute(body: BecknBody): string {
       return 'weather-forecast';
     case categoryName === 'Weather-Forecast-Mausamgram':
       return 'weather-forecast-mausamgram';
-    case categoryCode === 'schemes-agri' || categoryNameLower === 'schemes-agri':
-      return 'schemes-agri';
-    case categoryCode === 'icar-schemes' || categoryNameLower === 'icar-schemes':
-      return 'icar-schemes';
-    case categoryCode === 'pmfby' ||
-      categoryNameLower === 'pmfby' ||
-      !!categoryCode?.startsWith('pmfby') ||
-      providerId === 'pmfby-grievance' ||
-      firstItemId === 'pmfby-grievance':
-      return 'pmfby';
+    // Grievances first (must not be collapsed into generic pmfby/pmkisan)
+    // Provider/item ids in the system use "greviance" spelling.
+    case providerId === 'pmkisan-greviance' || firstItemId === 'pmkisan-greviance':
+      return 'pmkisan-greviance';
+    case providerId === 'pmfby-grievance' ||
+      firstItemId === 'pmfby-grievance' ||
+      categoryCode === 'pmfby-grievance' ||
+      categoryNameLower === 'pmfby-grievance' ||
+      categoryCode === 'pmfby-greviance' ||
+      categoryNameLower === 'pmfby-greviance':
+      return 'pmfby-grievance';
     case categoryCode === 'grievance' || categoryNameLower === 'grievance-agri':
       return 'grievance-agri';
+    // schemes-agri / icar-schemes already handled above via isSchemeCategory
+    case categoryCode === 'pmfby' ||
+      categoryNameLower === 'pmfby' ||
+      (!!categoryCode?.startsWith('pmfby') &&
+        !categoryCode?.includes('griev')) ||
+      providerId === 'pmfby-agri' ||
+      firstItemId === 'pmfby' ||
+      (!!firstItemId?.startsWith('pmfby') && !firstItemId?.includes('griev')):
+      return 'pmfby';
     case providerId === 'gfr-agri':
       return firstItemId === 'gfr-agri-crop-recommendation'
         ? 'gfr-crop-recommendation'
@@ -97,10 +228,6 @@ function resolveMobilityRoute(body: BecknBody): string {
       return 'sathi-seed';
     case providerId === 'smam':
       return 'smam';
-    case providerId === 'pmkisan-greviance':
-      return 'pmkisan-greviance';
-    case providerId === 'pmfby-grievance':
-      return 'pmfby-grievance';
     case providerId === 'pmfby-agri':
       return 'pmfby-agri';
     case providerId === 'shc-discovery':
@@ -114,7 +241,24 @@ export function resolveServiceName(
   body?: BecknBody,
   requestPath?: string,
 ): string {
-  const route = body ? resolveMobilityRoute(body) : 'unknown';
+  if (!body) {
+    if (requestPath?.includes('/mobility/')) return 'mobility';
+    return 'unknown';
+  }
+
+  // 1) Explicit scheme category code → scheme
+  if (isSchemeCategory(body)) {
+    return 'scheme';
+  }
+
+  // 2) Status / OTP / get-details / installment (reg-number)
+  //    → specific pmkisan-installment-status (not generic "pmkisan")
+  if (hasPmkisanInstallmentStatusSignal(body)) {
+    return 'pmkisan-installment-status';
+  }
+
+  // 3) Route-based: keeps pmkisan-greviance / pmfby-greviance / etc. distinct
+  const route = resolveMobilityRoute(body);
   if (route !== 'unknown' && ROUTE_TO_SERVICE[route]) {
     return ROUTE_TO_SERVICE[route];
   }
@@ -124,7 +268,8 @@ export function resolveServiceName(
     if (domain.includes('weather')) return 'imd';
     if (domain.includes('advisory')) return 'advisory';
     if (domain.includes('price')) return 'mandi';
-    return 'scheme';
+    // Do NOT map schemes:vistaar alone to scheme — need category code schemes-agri
+    return 'unknown';
   }
 
   if (requestPath?.includes('/mobility/')) return 'mobility';
@@ -193,7 +338,27 @@ export function extractUseCaseMetadata(body?: Record<string, unknown>): Record<s
   if (item?.code) meta.item_code = item.code;
   if (provider) meta.provider_id = provider;
 
-  if (meta.category_code === 'schemes-agri' || meta.category_code === 'icar-schemes') {
+  // PM-KISAN installment: capture reg-number when present
+  if (hasPmkisanInstallmentStatusSignal(body as BecknBody)) {
+    meta.use_case_type = 'pmkisan-installment-status';
+    const fulfillments =
+      (order.fulfillments as Array<{
+        customer?: { person?: { tags?: PersonTag[] } };
+      }>) ?? [];
+    for (const f of fulfillments) {
+      for (const tag of f?.customer?.person?.tags ?? []) {
+        if (tag?.descriptor?.code !== 'reg-details') continue;
+        for (const entry of tag.list ?? []) {
+          if (entry?.descriptor?.code === 'reg-number' && entry.value) {
+            meta.reg_number = String(entry.value).trim();
+          }
+        }
+      }
+    }
+  }
+
+  if (isSchemeCategory(body as BecknBody)) {
+    meta.use_case_type = 'scheme';
     meta.scheme_id = item?.name ?? item?.code ?? '';
   }
 
