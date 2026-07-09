@@ -13,6 +13,10 @@
 const REDACTED = '***REDACTED***';
 /** Placeholder for large HTML blobs (keeps key, drops content). */
 const HTML_PLACEHOLDER = '<html content text>';
+/** Placeholder for large base64 / binary-ish blobs (SHC media.url, etc.). */
+const BASE64_PLACEHOLDER = '<base64 content omitted>';
+/** Cap free-form string fields so SHC-style payloads stay under nginx body limits. */
+const MAX_STRING_CHARS = 4 * 1024;
 /** High enough for deep Beckn / GraphQL trees; cycle detection still applies. */
 const DEFAULT_MAX_DEPTH = 50;
 
@@ -161,6 +165,35 @@ function looksLikeHtmlDocument(value: unknown): boolean {
   );
 }
 
+/** data:...;base64,... or long pure-base64 strings (SHC media url). */
+function looksLikeLargeBase64(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length < 512) return false;
+  if (/^data:[^;]+;base64,/i.test(value)) return true;
+  // Pure base64 blob (no whitespace, high base64 alphabet ratio)
+  if (value.length >= MAX_STRING_CHARS && /^[A-Za-z0-9+/=\s]+$/.test(value)) {
+    const compact = value.replace(/\s/g, '');
+    return compact.length >= MAX_STRING_CHARS && /^[A-Za-z0-9+/=]+$/.test(compact);
+  }
+  return false;
+}
+
+/**
+ * Shrink oversized string values so telemetry batches stay under nginx
+ * client_max_body_size (prevents 413 on observability ingest).
+ */
+function maybeShrinkString(value: string, key?: string): string {
+  if (isHtmlContentKey(key ?? '') || looksLikeHtmlDocument(value)) {
+    return HTML_PLACEHOLDER;
+  }
+  if (looksLikeLargeBase64(value)) {
+    return `${BASE64_PLACEHOLDER} (len=${value.length})`;
+  }
+  if (value.length > MAX_STRING_CHARS) {
+    return `${value.slice(0, 200)}…[truncated ${value.length} chars]`;
+  }
+  return maskSensitivePatternsInString(value);
+}
+
 /**
  * Partial mask for identifiers — keeps last 4 characters when long enough.
  * e.g. 9876543210 → ******3210, APP123456789 → *******6789
@@ -228,7 +261,7 @@ export function sanitiseTelemetryPayload(
   if (payload === null || payload === undefined) return payload;
 
   if (typeof payload === 'string') {
-    return maskSensitivePatternsInString(payload);
+    return maybeShrinkString(payload);
   }
 
   if (typeof payload !== 'object') {
@@ -239,7 +272,7 @@ export function sanitiseTelemetryPayload(
 
   const walk = (value: unknown, depth: number): unknown => {
     if (value === null || value === undefined) return value;
-    if (typeof value === 'string') return maskSensitivePatternsInString(value);
+    if (typeof value === 'string') return maybeShrinkString(value);
     if (typeof value !== 'object') return value;
 
     if (depth <= 0) return { _truncated: true };
@@ -258,11 +291,32 @@ export function sanitiseTelemetryPayload(
     const tagCode = descriptorCode(obj);
     const tagIsSensitive = tagCode ? isSensitiveKey(tagCode) : false;
 
+    // SHC Beckn media: { mimetype: "text/html", url: "<huge base64>" }
+    const mime =
+      typeof obj.mimetype === 'string'
+        ? obj.mimetype
+        : typeof obj.mime_type === 'string'
+          ? obj.mime_type
+          : undefined;
+    const isHtmlMedia =
+      typeof mime === 'string' && mime.toLowerCase().includes('html');
+
     for (const [key, val] of Object.entries(obj)) {
       // Keep html key; replace bulky HTML with a short placeholder so telemetry
       // (e.g. SHC status / getTestForAuthUser) stays small enough to dispatch.
       if (isHtmlContentKey(key) && val !== null && val !== undefined && val !== '') {
         result[key] = HTML_PLACEHOLDER;
+        continue;
+      }
+
+      // media.url holding base64 HTML report
+      if (
+        isHtmlMedia &&
+        (key === 'url' || key === 'file' || key === 'content') &&
+        typeof val === 'string' &&
+        val.length > 256
+      ) {
+        result[key] = `${BASE64_PLACEHOLDER} (len=${val.length})`;
         continue;
       }
 
@@ -281,16 +335,10 @@ export function sanitiseTelemetryPayload(
         continue;
       }
 
-      // Free-form string that is clearly a full HTML document
-      if (typeof val === 'string' && looksLikeHtmlDocument(val)) {
-        result[key] = HTML_PLACEHOLDER;
-        continue;
-      }
-
       if (val && typeof val === 'object') {
         result[key] = walk(val, depth - 1);
       } else if (typeof val === 'string') {
-        result[key] = maskSensitivePatternsInString(val);
+        result[key] = maybeShrinkString(val, key);
       } else {
         result[key] = val;
       }

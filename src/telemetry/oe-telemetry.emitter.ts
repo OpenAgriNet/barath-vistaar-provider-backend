@@ -107,8 +107,113 @@ function buildOeEvent(
   };
 }
 
+/** Default ~512KB — nginx often rejects larger bodies with 413. */
+const DEFAULT_MAX_BATCH_BYTES = 512 * 1024;
+
+function getMaxBatchBytes(): number {
+  const configured = parseInt(
+    process.env.TELEMETRY_MAX_BATCH_BYTES || String(DEFAULT_MAX_BATCH_BYTES),
+    10,
+  );
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : DEFAULT_MAX_BATCH_BYTES;
+}
+
+/**
+ * If the batch is still oversized (e.g. residual large fields), strip
+ * networkApiDetails.input/output so nginx will accept the request.
+ */
+function shrinkBatchIfNeeded(
+  events: Record<string, unknown>[],
+  maxBytes: number,
+): Record<string, unknown>[] {
+  let serialized = JSON.stringify(events);
+  if (serialized.length <= maxBytes) return events;
+
+  oeLogger.warn(
+    `OE telemetry batch oversized (${serialized.length} bytes > ${maxBytes}); stripping large input/output fields`,
+  );
+
+  const shrunk = events.map((event) => {
+    if (event.eid !== 'OE_ITEM_RESPONSE') return event;
+    const edata = event.edata as { eks?: { target?: { networkApiDetails?: Record<string, unknown> } } } | undefined;
+    const details = edata?.eks?.target?.networkApiDetails;
+    if (!details) return event;
+
+    const inputSize = JSON.stringify(details.input ?? null).length;
+    const outputSize = JSON.stringify(details.output ?? null).length;
+    return {
+      ...event,
+      edata: {
+        ...edata,
+        eks: {
+          ...edata?.eks,
+          target: {
+            ...edata?.eks?.target,
+            networkApiDetails: {
+              ...details,
+              input:
+                inputSize > 2048
+                  ? { _omitted: true, _originalSize: inputSize }
+                  : details.input,
+              output:
+                outputSize > 2048
+                  ? { _omitted: true, _originalSize: outputSize }
+                  : details.output,
+            },
+          },
+        },
+      },
+    };
+  });
+
+  serialized = JSON.stringify(shrunk);
+  if (serialized.length > maxBytes) {
+    // Last resort: keep event shells only
+    return shrunk.map((event) => {
+      if (event.eid !== 'OE_ITEM_RESPONSE') return event;
+      const edata = event.edata as { eks?: { target?: { networkApiDetails?: Record<string, unknown> } } } | undefined;
+      const details = edata?.eks?.target?.networkApiDetails;
+      if (!details) return event;
+      return {
+        ...event,
+        edata: {
+          ...edata,
+          eks: {
+            ...edata?.eks,
+            target: {
+              ...edata?.eks?.target,
+              networkApiDetails: {
+                apiType: details.apiType,
+                apiService: details.apiService,
+                type: details.type,
+                service_name: details.service_name,
+                session_id: details.session_id,
+                question_id: details.question_id,
+                method: details.method,
+                url: details.url,
+                success: details.success,
+                statusCode: details.statusCode,
+                latencyMs: details.latencyMs,
+                error: details.error ?? null,
+                input: { _omitted: true },
+                output: { _omitted: true },
+              },
+            },
+          },
+        },
+      };
+    });
+  }
+
+  return shrunk;
+}
+
 async function dispatchOeBatch(events: Record<string, unknown>[]): Promise<void> {
-  if (!isTelemetryReady() || events.length === 0) return;
+  // Snapshot immediately — caller may clear the shared buffer array.
+  const batchEvents = events.slice();
+  if (!isTelemetryReady() || batchEvents.length === 0) return;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const authKey =
@@ -118,22 +223,28 @@ async function dispatchOeBatch(events: Record<string, unknown>[]): Promise<void>
   }
 
   const now = Date.now();
-
   const batchMid = generateTelemetryMid();
+  const maxBytes = getMaxBatchBytes();
+  const safeEvents = shrinkBatchIfNeeded(batchEvents, maxBytes);
+
   const payload = {
     id: 'ekstep.telemetry',
     ver: '2.2',
     ets: now,
     mid: batchMid,
     syncts: now,
-    events,
+    events: safeEvents,
   };
+
+  const payloadBytes = JSON.stringify(payload).length;
 
   try {
     const response = await axios.post(getTelemetryEndpoint(), payload, {
       headers,
       timeout: 15000,
       validateStatus: () => true,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
     });
 
     if (response.status < 200 || response.status >= 300) {
@@ -142,21 +253,21 @@ async function dispatchOeBatch(events: Record<string, unknown>[]): Promise<void>
           ? response.data
           : JSON.stringify(response.data ?? '');
       oeLogger.error(
-        `OE telemetry dispatch failed mid=${batchMid} status=${response.status} events=${events.length} body=${body.slice(0, 500)}`,
+        `OE telemetry dispatch failed mid=${batchMid} status=${response.status} events=${safeEvents.length} bytes=${payloadBytes} body=${body.slice(0, 500)}`,
       );
       return;
     }
 
     if (isTelemetryDebugEnabled()) {
       oeLogger.log(
-        `OE telemetry dispatched mid=${batchMid} events=${events.length} status=${response.status}`,
+        `OE telemetry dispatched mid=${batchMid} events=${safeEvents.length} bytes=${payloadBytes} status=${response.status}`,
       );
     }
   } catch (error) {
     const ax = error as AxiosError;
     const message = ax.message || String(error);
     oeLogger.error(
-      `OE telemetry dispatch error mid=${batchMid} events=${events.length}: ${message}`,
+      `OE telemetry dispatch error mid=${batchMid} events=${safeEvents.length} bytes=${payloadBytes}: ${message}`,
     );
   }
 }
@@ -275,6 +386,7 @@ export function emitOeEnd(
   }
 
   queueTelemetryEvent(state, buildOeEvent('OE_END', ctx, eks));
-  void dispatchOeBatch(state.events);
-  state.events.length = 0;
+  // Splice so dispatch owns a stable copy; buffer is cleared for the next flow.
+  const batch = state.events.splice(0, state.events.length);
+  void dispatchOeBatch(batch);
 }
