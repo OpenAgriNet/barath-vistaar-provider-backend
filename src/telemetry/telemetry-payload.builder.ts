@@ -151,7 +151,12 @@ export function buildExtApiEnvelope(
   };
 
   if (graphql?.query) {
-    envelope.graphql = graphql;
+    // Caller should pass pre-sanitised graphql; keep variables/query as-is here.
+    envelope.graphql = {
+      operation: graphql.operation,
+      query: graphql.query,
+      variables: graphql.variables ?? null,
+    };
   }
 
   return envelope;

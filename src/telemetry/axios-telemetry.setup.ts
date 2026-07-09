@@ -41,8 +41,17 @@ function logOutboundCall(
   const useCaseName = ctx.context.service_name ?? 'unknown';
   const downstreamService = resolveExternalServiceName(url);
   const rawRequest = parseAxiosRequestData(config.data ?? config.params);
+  // Sanitise body and GraphQL variables separately — graphql was previously
+  // taken from the raw request and leaked unmasked phones / tokens.
   const requestBody = sanitisePayload(rawRequest);
-  const graphql = extractGraphqlFromAxiosData(rawRequest);
+  const graphqlRaw = extractGraphqlFromAxiosData(rawRequest);
+  const graphql = graphqlRaw
+    ? (sanitisePayload(graphqlRaw) as {
+        operation?: string;
+        query?: string;
+        variables?: unknown;
+      })
+    : undefined;
   const responseBody = captureResponsePayload(data);
   // Empty payload on HTTP 200 is captured as 404 (not found / no data)
   const isEmpty = status === 200 && isEmptyBody(data);
@@ -50,18 +59,23 @@ function logOutboundCall(
   const success = isApiSuccess(effectiveStatus, data, error);
 
   try {
-    emitOeItemResponse(ctx, {
-      itemType: 'ext_api_call',
-      serviceName: useCaseName,
-      method,
-      url,
-      requestPayload: buildExtApiEnvelope(ctx, {
+    // Sanitise the full envelope so no nested branch (body / graphql / tags) skips masking
+    const requestPayload = sanitisePayload(
+      buildExtApiEnvelope(ctx, {
         url,
         method,
         downstreamService,
         requestBody,
         graphql,
       }),
+    );
+
+    emitOeItemResponse(ctx, {
+      itemType: 'ext_api_call',
+      serviceName: useCaseName,
+      method,
+      url,
+      requestPayload,
       responsePayload: isEmpty
         ? { _empty: true }
         : sanitisePayload(responseBody),
