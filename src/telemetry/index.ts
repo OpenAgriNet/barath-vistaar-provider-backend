@@ -8,7 +8,6 @@ export {
 } from './telemetry.context';
 export {
   getTelemetryEndpoint,
-  getTelemetryResponseMaxBytes,
   isTelemetryEnabled,
 } from './telemetry.config';
 export {
@@ -27,3 +26,9 @@ export {
   emitOeItemResponse,
   emitOeEnd,
 } from './oe-telemetry.emitter';
+export {
+  sanitisePayload,
+  sanitiseTelemetryPayload,
+  isSensitiveKey,
+  maskSensitiveValue,
+} from './telemetry-sanitiser';

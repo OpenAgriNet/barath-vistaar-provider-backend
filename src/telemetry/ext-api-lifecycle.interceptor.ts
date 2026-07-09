@@ -6,13 +6,10 @@ import {
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import {
-  isEmptyBody,
-  sanitisePayload,
-  truncateBody,
-} from 'telemetry-wrap';
+import { isEmptyBody } from 'telemetry-wrap';
 import { getTelemetryContext } from './telemetry.context';
 import { logTelemetryApiCall } from './telemetry.logger';
+import { sanitisePayload } from './telemetry-sanitiser';
 
 @Injectable()
 export class ExtApiLifecycleInterceptor implements NestInterceptor {
@@ -23,9 +20,15 @@ export class ExtApiLifecycleInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap((response) => {
         const latencyMs = Date.now() - requestTime;
-        const responseBody = truncateBody(response?.data);
+        // Empty payload on HTTP 200 is captured as 404 (not found / no data)
         const isEmptyResponse =
           response?.status === 200 && isEmptyBody(response?.data);
+        const responseStatus = isEmptyResponse
+          ? 404
+          : (response?.status ?? 0);
+        const responseBody = isEmptyResponse
+          ? { _empty: true }
+          : sanitisePayload(response?.data);
 
         logTelemetryApiCall(
           {
@@ -35,8 +38,8 @@ export class ExtApiLifecycleInterceptor implements NestInterceptor {
             requestPayload: sanitisePayload(response?.config?.data),
             sessionId: ctx.sessionId,
             questionId: ctx.questionId,
-            responseStatus: response?.status ?? 0,
-            responseBody,
+            responseStatus,
+            responseBody: responseBody as object,
             isEmptyResponse,
             latencyMs,
             context: {
@@ -60,7 +63,7 @@ export class ExtApiLifecycleInterceptor implements NestInterceptor {
             sessionId: ctx.sessionId,
             questionId: ctx.questionId,
             responseStatus: err?.response?.status ?? 0,
-            responseBody: truncateBody(err?.response?.data),
+            responseBody: sanitisePayload(err?.response?.data) as object,
             isEmptyResponse: false,
             latencyMs,
             error: err?.message,

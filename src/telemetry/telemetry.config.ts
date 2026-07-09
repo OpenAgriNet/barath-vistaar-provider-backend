@@ -59,16 +59,3 @@ export function getTelemetryEndpoint(): string {
 export function isTelemetryEnabled(): boolean {
   return process.env.TELEMETRY_ENABLED !== 'false';
 }
-
-const DEFAULT_RESPONSE_MAX_BYTES = 200 * 1024;
-
-export function getTelemetryResponseMaxBytes(): number {
-  const configured = parseInt(
-    process.env.TELEMETRY_RESPONSE_MAX_BYTES ||
-      String(DEFAULT_RESPONSE_MAX_BYTES),
-    10,
-  );
-  return Number.isFinite(configured) && configured > 0
-    ? configured
-    : DEFAULT_RESPONSE_MAX_BYTES;
-}

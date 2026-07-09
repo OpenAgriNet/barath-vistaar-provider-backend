@@ -1,13 +1,9 @@
-import { truncateBody } from 'telemetry-wrap';
 import type { TelemetryContext } from './telemetry.context';
-import { getTelemetryResponseMaxBytes } from './telemetry.config';
 
-/** Store full response up to 200KB (configurable); truncate only above that. */
+/** Capture full request/response body without size truncation. */
 export function captureResponsePayload(body: unknown): unknown {
   if (body === null || body === undefined) return null;
-  if (typeof body !== 'object') return body;
-
-  return truncateBody(body, getTelemetryResponseMaxBytes());
+  return body;
 }
 
 export function parseHostFromUrl(url?: string): string | undefined {

@@ -89,26 +89,6 @@ SELECT
 FROM provider_telemetry_events
 GROUP BY question_id, session_id;
 
-CREATE OR REPLACE VIEW v_provider_telemetry_timeline AS
-SELECT
-    session_id,
-    question_id,
-    service_name,
-    step_sequence,
-    event_type,
-    endpoint_url,
-    request_payload->>'host'               AS host,
-    request_payload->>'downstream_service' AS downstream_service,
-    request_payload->>'route_name'         AS route_name,
-    request_payload->'graphql'->>'query'   AS graphql_query,
-    http_status,
-    latency_ms,
-    success,
-    error_message,
-    event_timestamp
-FROM provider_telemetry_events
-ORDER BY event_timestamp DESC, step_sequence ASC;
-
 -- ---------------------------------------------------------------------------
 -- 2. ETL run (single statement — auto-commits on success)
 -- ---------------------------------------------------------------------------

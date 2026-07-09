@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { sanitisePayload } from 'telemetry-wrap';
+import { isEmptyBody } from 'telemetry-wrap';
 import { getTelemetryContext } from './telemetry.context';
 import { getTelemetryEndpoint } from './telemetry.config';
 import { emitOeItemResponse } from './oe-telemetry.emitter';
@@ -11,6 +11,7 @@ import {
   parseAxiosRequestData,
 } from './telemetry-payload.builder';
 import { resolveExternalServiceName } from './service-name.resolver';
+import { sanitisePayload } from './telemetry-sanitiser';
 
 type TimedAxiosConfig = InternalAxiosRequestConfig & {
   __telemetryStart?: number;
@@ -42,8 +43,11 @@ function logOutboundCall(
   const rawRequest = parseAxiosRequestData(config.data ?? config.params);
   const requestBody = sanitisePayload(rawRequest);
   const graphql = extractGraphqlFromAxiosData(rawRequest);
-  const truncatedBody = captureResponsePayload(data);
-  const success = isApiSuccess(status, data, error);
+  const responseBody = captureResponsePayload(data);
+  // Empty payload on HTTP 200 is captured as 404 (not found / no data)
+  const isEmpty = status === 200 && isEmptyBody(data);
+  const effectiveStatus = isEmpty ? 404 : status;
+  const success = isApiSuccess(effectiveStatus, data, error);
 
   try {
     emitOeItemResponse(ctx, {
@@ -58,8 +62,10 @@ function logOutboundCall(
         requestBody,
         graphql,
       }),
-      responsePayload: sanitisePayload(truncatedBody),
-      statusCode: status,
+      responsePayload: isEmpty
+        ? { _empty: true }
+        : sanitisePayload(responseBody),
+      statusCode: effectiveStatus,
       latencyMs,
       success,
       error,

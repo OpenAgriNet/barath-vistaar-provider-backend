@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { isEmptyBody, sanitisePayload } from 'telemetry-wrap';
+import { isEmptyBody } from 'telemetry-wrap';
 import {
   TelemetryContext,
   extractBecknContext,
@@ -22,6 +22,7 @@ import {
   captureResponsePayload,
   isApiSuccess,
 } from './telemetry-payload.builder';
+import { sanitisePayload } from './telemetry-sanitiser';
 
 @Injectable()
 export class BecknTelemetryInterceptor implements NestInterceptor {
@@ -91,9 +92,11 @@ export class BecknTelemetryInterceptor implements NestInterceptor {
   ): void {
     try {
       const url = req.originalUrl || req.url || 'unknown';
-      const truncatedResponse = captureResponsePayload(responseBody);
-      const success = isApiSuccess(statusCode, responseBody, error);
+      const capturedResponse = captureResponsePayload(responseBody);
+      // Empty payload on HTTP 200 is captured as 404 (not found / no data)
       const isEmpty = statusCode === 200 && isEmptyBody(responseBody);
+      const effectiveStatusCode = isEmpty ? 404 : statusCode;
+      const success = isApiSuccess(effectiveStatusCode, responseBody, error);
 
       emitOeItemResponse(ctx, {
         itemType: 'bpp_network_api_call',
@@ -106,8 +109,8 @@ export class BecknTelemetryInterceptor implements NestInterceptor {
         ),
         responsePayload: isEmpty
           ? { _empty: true }
-          : sanitisePayload(truncatedResponse),
-        statusCode,
+          : sanitisePayload(capturedResponse),
+        statusCode: effectiveStatusCode,
         latencyMs,
         success,
         error,
