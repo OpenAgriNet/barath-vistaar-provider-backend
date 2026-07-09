@@ -67,7 +67,7 @@ function toEksType(eid: OeFlowEid, itemType?: OeItemType): string {
   return 'API_CALL';
 }
 
-function flowTarget(ctx: TelemetryContext): Record<string, string> {
+function flowTarget(ctx: TelemetryContext): Record<string, string | null> {
   return {
     session_id: ctx.sessionId,
     question_id: ctx.questionId,
@@ -75,8 +75,8 @@ function flowTarget(ctx: TelemetryContext): Record<string, string> {
     route_name: ctx.context.route_name ?? 'unknown',
     beckn_action: ctx.context.beckn_action ?? 'unknown',
     beckn_domain: ctx.context.beckn_domain ?? 'unknown',
-    beckn_transaction_id: ctx.context.beckn_transaction_id ?? ctx.sessionId,
-    beckn_message_id: ctx.context.beckn_message_id ?? ctx.questionId,
+    beckn_transaction_id: ctx.context.beckn_transaction_id ?? null,
+    beckn_message_id: ctx.context.beckn_message_id ?? null,
     request_path: ctx.context.request_path ?? 'unknown',
   };
 }

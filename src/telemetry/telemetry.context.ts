@@ -36,8 +36,8 @@ export function getTelemetryFlowState(): TelemetryFlowState | undefined {
 export function getTelemetryContext(): TelemetryContext {
   return (
     telemetryStorage.getStore()?.context ?? {
-      sessionId: 'unknown',
-      questionId: 'unknown',
+      sessionId: null,
+      questionId: null,
       hasExplicitCorrelation: false,
       context: {},
     }

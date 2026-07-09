@@ -5,11 +5,14 @@
  * Covers:
  * - application number, aadhaar, reg number, phone / mobile
  * - otp, password, token, and other secrets
+ * - html fields (SHC reports etc.) — key kept, body replaced with placeholder
  * - Beckn tag shape: { descriptor: { code: "phone" }, value: "..." }
  * - Nested objects and arrays
  */
 
 const REDACTED = '***REDACTED***';
+/** Placeholder for large HTML blobs (keeps key, drops content). */
+const HTML_PLACEHOLDER = '<html content text>';
 /** High enough for deep Beckn / GraphQL trees; cycle detection still applies. */
 const DEFAULT_MAX_DEPTH = 50;
 
@@ -142,6 +145,22 @@ function isFullRedactKey(key: string): boolean {
   return /password|secret|(^|.)otp$|apikey|authorization/.test(n);
 }
 
+/** Keys that hold large HTML report bodies (SHC getTestForAuthUser, etc.). */
+function isHtmlContentKey(key: string): boolean {
+  const n = normalizeKey(key);
+  return n === 'html' || n === 'htmlcontent' || n === 'htmlbody' || n === 'htmldata';
+}
+
+function looksLikeHtmlDocument(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trimStart().slice(0, 64).toLowerCase();
+  return (
+    trimmed.startsWith('<!doctype html') ||
+    trimmed.startsWith('<html') ||
+    (value.length > 2000 && /<\/?(html|head|body|div|table)\b/i.test(trimmed))
+  );
+}
+
 /**
  * Partial mask for identifiers — keeps last 4 characters when long enough.
  * e.g. 9876543210 → ******3210, APP123456789 → *******6789
@@ -240,6 +259,13 @@ export function sanitiseTelemetryPayload(
     const tagIsSensitive = tagCode ? isSensitiveKey(tagCode) : false;
 
     for (const [key, val] of Object.entries(obj)) {
+      // Keep html key; replace bulky HTML with a short placeholder so telemetry
+      // (e.g. SHC status / getTestForAuthUser) stays small enough to dispatch.
+      if (isHtmlContentKey(key) && val !== null && val !== undefined && val !== '') {
+        result[key] = HTML_PLACEHOLDER;
+        continue;
+      }
+
       if (isSensitiveKey(key)) {
         result[key] = maskSensitiveValue(val, key);
         continue;
@@ -252,6 +278,12 @@ export function sanitiseTelemetryPayload(
           // list of nested tags — still walk so child tags are handled
           result[key] = walk(val, depth - 1);
         }
+        continue;
+      }
+
+      // Free-form string that is clearly a full HTML document
+      if (typeof val === 'string' && looksLikeHtmlDocument(val)) {
+        result[key] = HTML_PLACEHOLDER;
         continue;
       }
 
