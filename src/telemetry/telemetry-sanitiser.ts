@@ -18,8 +18,19 @@ const FULL_REDACT_KEYS = new Set([
   'password',
   'secret',
   'token',
+  'tokens',
   'accesstoken',
   'refreshtoken',
+  'idtoken',
+  'authtoken',
+  'apitoken',
+  'bearertoken',
+  'sessiontoken',
+  'servicetoken',
+  'aadhaartoken',
+  'aadhartoken',
+  'jwttoken',
+  'jwt',
   'otp',
   'pin',
   'cvv',
@@ -93,27 +104,42 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   /password/,
   /secret/,
   /(^|.)otp$/,
-  /(access|refresh)?token$/,
+  // any *token* key (access_token, AadhaarToken, x-auth-token, …)
+  /token/,
+  /^jwt$/,
   /creditcard|cardnumber/,
   /account(no|num|number)$/,
-  /apikey|authorization/,
+  /apikey|authorization|bearer/,
 ];
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[-_\s.]/g, '');
 }
 
+function isTokenLikeKey(normalizedKey: string): boolean {
+  return (
+    normalizedKey.includes('token') ||
+    normalizedKey === 'jwt' ||
+    normalizedKey === 'authorization' ||
+    normalizedKey === 'bearer' ||
+    normalizedKey === 'apikey' ||
+    normalizedKey === 'apisecret'
+  );
+}
+
 export function isSensitiveKey(key: string): boolean {
   const n = normalizeKey(key);
   if (!n) return false;
   if (SENSITIVE_EXACT_KEYS.has(n)) return true;
+  if (isTokenLikeKey(n)) return true;
   return SENSITIVE_KEY_PATTERNS.some((re) => re.test(n));
 }
 
 function isFullRedactKey(key: string): boolean {
   const n = normalizeKey(key);
   if (FULL_REDACT_KEYS.has(n)) return true;
-  return /password|secret|(^|.)otp$|(^|.)token$|apikey|authorization/.test(n);
+  if (isTokenLikeKey(n)) return true;
+  return /password|secret|(^|.)otp$|apikey|authorization/.test(n);
 }
 
 /**
@@ -142,16 +168,23 @@ const AADHAAR_VALUE_RE = /(?<!\d)(\d{4}[\s-]?\d{4}[\s-]?\d{4})(?!\d)/g;
 const PHONE_VALUE_RE =
   /(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{9}(?!\d)/g;
 
+/** Authorization: Bearer <token> (or bare Bearer tokens in free text). */
+const BEARER_TOKEN_RE = /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi;
+
+/** JWT (header.payload.signature). */
+const JWT_RE =
+  /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g;
+
 /**
- * Mask Aadhaar / phone-like substrings inside free-form strings
- * (e.g. log messages or concatenated fields).
+ * Mask Aadhaar / phone / token-like substrings inside free-form strings
+ * (e.g. log messages, Authorization headers, concatenated fields).
  */
 export function maskSensitivePatternsInString(text: string): string {
   if (!text || typeof text !== 'string') return text;
 
-  let out = text.replace(AADHAAR_VALUE_RE, (match) =>
-    maskSensitiveValue(match),
-  );
+  let out = text.replace(BEARER_TOKEN_RE, 'Bearer ***REDACTED***');
+  out = out.replace(JWT_RE, REDACTED);
+  out = out.replace(AADHAAR_VALUE_RE, (match) => maskSensitiveValue(match));
   out = out.replace(PHONE_VALUE_RE, (match) => maskSensitiveValue(match));
   return out;
 }

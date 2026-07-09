@@ -1865,7 +1865,7 @@ export class HasuraService {
           scheme_support
           scheme_misc
           scheme_application
-          # scheme_exclusion
+          scheme_exclusion
           faq_url
         }
     }`;
