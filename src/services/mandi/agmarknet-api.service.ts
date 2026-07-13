@@ -86,25 +86,80 @@ export class AgmarknetApiService {
     return msg.includes("no data");
   }
 
+  private formatAxiosError(err: unknown): string {
+    const ax = err as AxiosError;
+    const status = ax?.response?.status;
+    const data = ax?.response?.data;
+    let body = "";
+    if (typeof data === "string") {
+      body = data.replace(/\s+/g, " ").slice(0, 200);
+    } else if (data && typeof data === "object") {
+      try {
+        body = JSON.stringify(data).slice(0, 200);
+      } catch {
+        body = String(data);
+      }
+    }
+    const msg = ax?.message || String(err);
+    if (status != null) {
+      return `status=${status} message=${msg}${body ? ` body=${body}` : ""}`;
+    }
+    return msg;
+  }
+
   private async requestNewToken(logCtx: string): Promise<string> {
     this.assertCredentials();
     const url = `${this.baseUrl}/v1/generate-dynamic-token-agmarknet`;
-    this.logger.log("MANDI generating new Agmarknet token via generate-dynamic-token", logCtx);
-
-    const response = await axios.post(
-      url,
-      { access_name: this.accessName, password: this.password },
-      { timeout: 30000 },
+    this.logger.log(
+      `MANDI generating new Agmarknet token via generate-dynamic-token access_name=${this.accessName}`,
+      logCtx,
     );
-    const token = response.data?.token;
-    if (!token || typeof token !== "string") {
-      throw new Error("Agmarknet token response missing token field");
-    }
 
-    this.cachedToken = token;
-    this.tokenIssuedAt = Date.now();
-    this.logger.log("MANDI Agmarknet token generated successfully", logCtx);
-    return token;
+    try {
+      const response = await axios.post(
+        url,
+        { access_name: this.accessName, password: this.password },
+        {
+          timeout: 30000,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          // Do not throw only on network — we want explicit body on 4xx
+          validateStatus: () => true,
+        },
+      );
+
+      if (response.status < 200 || response.status >= 300) {
+        const bodyPreview =
+          typeof response.data === "string"
+            ? response.data.replace(/\s+/g, " ").slice(0, 200)
+            : JSON.stringify(response.data ?? {}).slice(0, 200);
+        throw new Error(
+          `generate-dynamic-token failed status=${response.status} body=${bodyPreview}. ` +
+            `Check AGMARKNET_ACCESS_NAME / AGMARKNET_PASSWORD on this host, and that this server IP is allowed by Agmarknet.`,
+        );
+      }
+
+      const token = response.data?.token;
+      if (!token || typeof token !== "string") {
+        throw new Error(
+          `Agmarknet token response missing token field body=${JSON.stringify(response.data).slice(0, 200)}`,
+        );
+      }
+
+      this.cachedToken = token;
+      this.tokenIssuedAt = Date.now();
+      this.logger.log("MANDI Agmarknet token generated successfully", logCtx);
+      return token;
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("generate-dynamic-token")) {
+        throw err;
+      }
+      throw new Error(
+        `generate-dynamic-token request failed: ${this.formatAxiosError(err)}`,
+      );
+    }
   }
 
   private invalidateToken(): void {
