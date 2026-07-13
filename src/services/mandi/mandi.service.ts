@@ -182,15 +182,25 @@ export class MandiService {
         this.logCtx(body),
       );
 
-      if (ax?.response?.status === 403) {
+      const isAuthFailure =
+        ax?.response?.status === 401 ||
+        ax?.response?.status === 403 ||
+        /generate-dynamic-token failed status=40[13]/i.test(message) ||
+        /token rejected|invalid token|agmarknet auth/i.test(message);
+
+      if (isAuthFailure) {
+        const inactive = /inactive/i.test(message) || /inactive/i.test(apiError || "");
+        const htmlForbidden = /<!doctype html>|403 Forbidden/i.test(message);
         return {
           context: onSearchContext,
           message: {
             catalog: this.catalogCompact.errorCatalog(
               "agmarknet_auth_failed",
-              apiError?.includes("inactive")
+              inactive
                 ? "Agmarknet credentials inactive for data APIs — contact Agmarknet to activate BV-Data-Agmarknet"
-                : "Agmarknet token rejected — verify AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
+                : htmlForbidden
+                  ? "Agmarknet blocked this server (HTTP 403 HTML). Credentials may work from other networks — allowlist this host egress IP for api.agmarknet.gov.in or fix AGMARKNET_ACCESS_NAME/PASSWORD on this host"
+                  : "Agmarknet token/auth failed — verify MANDI_TOKEN, AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
             ),
           },
         };

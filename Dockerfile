@@ -15,8 +15,15 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# ca-certificates is required for HTTPS from the container (curl + any
+# system trust store consumers). node:20-slim does not ship them by default;
+# without this, outbound TLS to api.agmarknet.gov.in fails (curl error 77 /
+# opaque 403 HTML from middleboxes).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json .npmrc ./

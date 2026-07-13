@@ -124,8 +124,10 @@ export class AgmarknetApiService {
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
+            // Some gateways treat bare axios UA differently than curl from the host
+            "User-Agent": "bharat-provider-backend/mandi",
           },
-          // Do not throw only on network — we want explicit body on 4xx
+          // Capture 4xx/5xx body instead of throwing before we can log it
           validateStatus: () => true,
         },
       );
@@ -137,7 +139,8 @@ export class AgmarknetApiService {
             : JSON.stringify(response.data ?? {}).slice(0, 200);
         throw new Error(
           `generate-dynamic-token failed status=${response.status} body=${bodyPreview}. ` +
-            `Check AGMARKNET_ACCESS_NAME / AGMARKNET_PASSWORD on this host, and that this server IP is allowed by Agmarknet.`,
+            `Check AGMARKNET_ACCESS_NAME / AGMARKNET_PASSWORD inside the container (docker exec printenv | grep AGMARKNET), ` +
+            `and that the image has ca-certificates (curl error 77 means rebuild with ca-certificates).`,
         );
       }
 
@@ -261,7 +264,13 @@ export class AgmarknetApiService {
         );
 
         try {
-          const response = await axios.get(url, { timeout: 30000 });
+          const response = await axios.get(url, {
+            timeout: 30000,
+            headers: {
+              Accept: "application/json",
+              "User-Agent": "bharat-provider-backend/mandi",
+            },
+          });
           this.markTokenValid(token);
           return response.data;
         } catch (err) {
