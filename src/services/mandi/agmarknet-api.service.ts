@@ -17,15 +17,20 @@ export class AgmarknetApiService {
   ).replace(/\/$/, "");
   private readonly accessName = process.env.AGMARKNET_ACCESS_NAME;
   private readonly password = process.env.AGMARKNET_PASSWORD;
-  /** Mandi-issued token — tried first; generate API only when this is rejected. */
-  private readonly seedToken =
-    process.env.MANDI_TOKEN || "7e78e809-a703-4e05-b441-dfefdc6ee1c4";
+  /**
+   * Preferred token from .env (MANDI_TOKEN). Tried first on cold start.
+   * If Agmarknet rejects it (expired / invalid), we generate a fresh token
+   * and never reuse the dead seed for the rest of the process lifetime.
+   */
+  private readonly seedToken = (process.env.MANDI_TOKEN || "").trim();
   private readonly tokenTtlMs = 24 * 60 * 60 * 1000;
 
-  /** Cached token — reused across requests until expired or Agmarknet rejects it. */
+  /** Live token — seed or generated. */
   private cachedToken: string | null = null;
   private tokenIssuedAt: number | null = null;
   private tokenRefreshPromise: Promise<string> | null = null;
+  /** After MANDI_TOKEN is rejected once, skip it and always generate. */
+  private seedTokenRejected = false;
 
   /** Serialize Agmarknet calls so concurrent requests do not race on token refresh. */
   private agmarknetChain: Promise<unknown> = Promise.resolve();
@@ -42,6 +47,11 @@ export class AgmarknetApiService {
   }
 
   private assertCredentials(): void {
+    if (!this.baseUrl) {
+      throw new Error(
+        "Agmarknet base URL not configured: set AGMARKNET_BASE_URL",
+      );
+    }
     if (!this.accessName || !this.password) {
       throw new Error(
         "Agmarknet auth not configured: set AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
@@ -50,15 +60,22 @@ export class AgmarknetApiService {
   }
 
   private isTokenRejected(err: unknown): boolean {
-    const ax = err as AxiosError<{ error?: string }>;
+    const ax = err as AxiosError<{ error?: string; message?: string }>;
     const status = ax?.response?.status;
-    const msg = String(ax?.response?.data?.error ?? ax?.message ?? "").toLowerCase();
+    const data = ax?.response?.data;
+    const msg = String(
+      data?.error ?? data?.message ?? ax?.message ?? "",
+    ).toLowerCase();
+
+    if (status === 401 || status === 403) return true;
+
     return (
-      status === 403 ||
       msg.includes("token expired") ||
-      msg.includes("inactive") ||
       msg.includes("invalid token") ||
-      msg.includes("invalid or already used")
+      msg.includes("inactive") ||
+      msg.includes("unauthorized") ||
+      msg.includes("invalid or already used") ||
+      msg.includes("already used")
     );
   }
 
@@ -72,7 +89,7 @@ export class AgmarknetApiService {
   private async requestNewToken(logCtx: string): Promise<string> {
     this.assertCredentials();
     const url = `${this.baseUrl}/v1/generate-dynamic-token-agmarknet`;
-    this.logger.log("MANDI calling Agmarknet generate-dynamic-token", logCtx);
+    this.logger.log("MANDI generating new Agmarknet token via generate-dynamic-token", logCtx);
 
     const response = await axios.post(
       url,
@@ -80,12 +97,13 @@ export class AgmarknetApiService {
       { timeout: 30000 },
     );
     const token = response.data?.token;
-    if (!token) {
+    if (!token || typeof token !== "string") {
       throw new Error("Agmarknet token response missing token field");
     }
+
     this.cachedToken = token;
     this.tokenIssuedAt = Date.now();
-    this.logger.log("MANDI Agmarknet token generated", logCtx);
+    this.logger.log("MANDI Agmarknet token generated successfully", logCtx);
     return token;
   }
 
@@ -102,22 +120,47 @@ export class AgmarknetApiService {
   private markTokenValid(token: string): void {
     this.cachedToken = token;
     if (!this.tokenIssuedAt) {
+      // Seed token from env — treat first successful use as issue time for TTL.
       this.tokenIssuedAt = Date.now();
     }
   }
 
+  private markSeedRejected(logCtx: string): void {
+    if (!this.seedTokenRejected && this.seedToken) {
+      this.seedTokenRejected = true;
+      this.logger.warn(
+        "MANDI_TOKEN from .env rejected/expired — will generate new tokens from now on",
+        logCtx,
+      );
+    }
+  }
+
   /**
-   * Return cached/seed token without calling generate API.
-   * generate-dynamic-token runs only on forceRefresh or when no token is available.
+   * Token resolution:
+   *  1. Reuse valid cached token (generated or previously validated seed)
+   *  2. Else try MANDI_TOKEN from .env once (if not already rejected)
+   *  3. Else POST generate-dynamic-token-agmarknet and cache the result
+   *
+   * forceRefresh always skips cache/seed and generates a new token.
    */
   private async getToken(logCtx: string, forceRefresh = false): Promise<string> {
     if (!forceRefresh && this.cachedToken && !this.isTokenExpiredByTtl()) {
       return this.cachedToken;
     }
 
-    if (!forceRefresh && !this.cachedToken && this.seedToken) {
+    if (forceRefresh || this.isTokenExpiredByTtl()) {
+      this.invalidateToken();
+    }
+
+    if (
+      !forceRefresh &&
+      !this.cachedToken &&
+      this.seedToken &&
+      !this.seedTokenRejected
+    ) {
       this.cachedToken = this.seedToken;
-      this.logger.log("MANDI using configured Agmarknet token", logCtx);
+      this.tokenIssuedAt = null; // unknown age — rely on API rejection + TTL after first success
+      this.logger.log("MANDI using MANDI_TOKEN from .env", logCtx);
       return this.cachedToken;
     }
 
@@ -138,20 +181,29 @@ export class AgmarknetApiService {
     label: string,
   ): Promise<any> {
     return this.runSerialized(async () => {
+      // attempt 1: cached / MANDI_TOKEN
+      // attempt 2: freshly generated token after rejection or expiry
       const maxAttempts = 2;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const forceRefresh = attempt > 1;
         if (forceRefresh) {
           this.invalidateToken();
-          this.logger.warn(`MANDI token expired generating new token attempt=${attempt}`, logCtx);
+          this.logger.warn(
+            `MANDI token invalid/expired — generating new token attempt=${attempt}`,
+            logCtx,
+          );
         }
 
         const token = await this.getToken(logCtx, forceRefresh);
+        const usingSeed = !!this.seedToken && token === this.seedToken;
         const query = new URLSearchParams({ ...params, token });
         const url = `${this.baseUrl}${path}?${query.toString()}`;
 
-        this.logger.log(`MANDI calling ${label} attempt=${attempt}`, logCtx);
+        this.logger.log(
+          `MANDI calling ${label} attempt=${attempt} tokenSource=${usingSeed ? "MANDI_TOKEN" : "generated"}`,
+          logCtx,
+        );
 
         try {
           const response = await axios.get(url, { timeout: 30000 });
@@ -160,12 +212,28 @@ export class AgmarknetApiService {
         } catch (err) {
           if (this.isNoDataResponse(err)) {
             this.logger.warn(`MANDI ${label} no data available`, logCtx);
+            // No-data is a valid business response; keep token if it was accepted.
+            this.markTokenValid(token);
             return [];
           }
+
           if (this.isTokenRejected(err) && attempt < maxAttempts) {
-            this.logger.warn(`MANDI ${label} token rejected will refresh and retry`, logCtx);
+            if (usingSeed) {
+              this.markSeedRejected(logCtx);
+            }
+            const ax = err as AxiosError<{ error?: string; message?: string }>;
+            const reason =
+              ax?.response?.data?.error ||
+              ax?.response?.data?.message ||
+              ax?.message ||
+              "token rejected";
+            this.logger.warn(
+              `MANDI ${label} token rejected (${reason}) — will generate and retry`,
+              logCtx,
+            );
             continue;
           }
+
           throw err;
         }
       }
