@@ -379,7 +379,7 @@ export class AgmarknetApiService {
     const from = parse(fromDate, "dd-MM-yyyy", new Date());
     const to = parse(toDate, "dd-MM-yyyy", new Date());
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-      throw new Error(
+      throw new TypeError(
         `Invalid fromDate/toDate for vistaar-location: ${fromDate} / ${toDate}`,
       );
     }
