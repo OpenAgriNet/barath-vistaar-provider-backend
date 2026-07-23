@@ -6,7 +6,11 @@ export interface MandiLocationIntent {
   lat: number;
   lon: number;
   locationName: string;
-  date: string;
+  /** Single-date lookup. Unset when fromDate/toDate is present. */
+  date?: string;
+  /** Date-range lookup, from intent.tags codes "from_date"/"to_date". */
+  fromDate?: string;
+  toDate?: string;
 }
 
 @Injectable()
@@ -42,12 +46,19 @@ export class BecknContextService {
 
     const tags: Array<{ code?: string; value?: string }> = intent?.tags || [];
     const dateTag = tags.find((t) => t.code === "date")?.value;
-    const stopRange = intent?.fulfillment?.stops?.[0]?.time?.range;
-    const dateFromRange = stopRange?.end || stopRange?.start;
-    const date = this.agmarknetApi.parseDateTag(dateTag || dateFromRange);
+    const fromDateTag = tags.find((t) => t.code === "from_date")?.value;
+    const toDateTag = tags.find((t) => t.code === "to_date")?.value;
 
     if (!lat || !lon) return null;
 
+    // A real range (both from_date and to_date tags) takes precedence over the single "date" tag.
+    if (fromDateTag && toDateTag) {
+      const fromDate = this.agmarknetApi.parseDateTag(fromDateTag);
+      const toDate = this.agmarknetApi.parseDateTag(toDateTag);
+      return { commodityName, lat, lon, locationName, fromDate, toDate };
+    }
+
+    const date = this.agmarknetApi.parseDateTag(dateTag);
     return { commodityName, lat, lon, locationName, date };
   }
 

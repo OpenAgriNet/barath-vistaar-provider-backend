@@ -99,9 +99,12 @@ export class MandiService {
       };
     }
 
+    const dateSummary = intent.fromDate
+      ? `fromDate=${intent.fromDate} toDate=${intent.toDate}`
+      : `date=${intent.date}`;
     this.logMandi(
       body,
-      `MANDI parsed intent commodity=${intent.commodityName} location=${intent.locationName} lat=${intent.lat} lon=${intent.lon} date=${intent.date}`,
+      `MANDI parsed intent commodity=${intent.commodityName} location=${intent.locationName} lat=${intent.lat} lon=${intent.lon} ${dateSummary}`,
     );
 
     this.logMandi(body, `MANDI looking up commodity in Postgres query=${intent.commodityName}`);
@@ -141,6 +144,8 @@ export class MandiService {
           lat: intent.lat,
           lon: intent.lon,
           date: intent.date,
+          fromDate: intent.fromDate,
+          toDate: intent.toDate,
         },
         logCtx,
       );
@@ -154,7 +159,7 @@ export class MandiService {
         catalog.providers?.[0]?.items?.length ?? 0;
       this.logMandi(
         body,
-        `MANDI returning on_search items=${itemCount} location=${intent.locationName} date=${intent.date}`,
+        `MANDI returning on_search items=${itemCount} location=${intent.locationName} ${dateSummary}`,
       );
       if (itemCount > 0) {
         const firstTags =
@@ -202,6 +207,19 @@ export class MandiService {
                   ? "Agmarknet blocked this server (HTTP 403 HTML). Credentials may work from other networks — allowlist this host egress IP for api.agmarknet.gov.in or fix AGMARKNET_ACCESS_NAME/PASSWORD on this host"
                   : "Agmarknet token/auth failed — verify MANDI_TOKEN, AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
             ),
+          },
+        };
+      }
+
+      const isInvalidDateRange =
+        /exceeds agmarknet's \d+-day limit|fromdate must not be after todate|invalid fromdate\/todate/i.test(
+          message,
+        );
+      if (isInvalidDateRange) {
+        return {
+          context: onSearchContext,
+          message: {
+            catalog: this.catalogCompact.errorCatalog("invalid_date_range", message),
           },
         };
       }
