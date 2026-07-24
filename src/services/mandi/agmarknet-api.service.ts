@@ -1,13 +1,19 @@
 import { Injectable } from "@nestjs/common";
 import axios, { AxiosError } from "axios";
-import { format } from "date-fns";
+import { differenceInCalendarDays, format, parse } from "date-fns";
 import { LoggerService } from "../logger/logger.service";
+
+const MAX_VISTAAR_LOCATION_RANGE_DAYS = 30;
 
 export interface VistaarLocationParams {
   commodityId: number;
   lat: number;
   lon: number;
-  date: string;
+  /** Single-date lookup. Mutually exclusive with fromDate/toDate. */
+  date?: string;
+  /** Date-range lookup — both must be set together, and not combined with date. */
+  fromDate?: string;
+  toDate?: string;
 }
 
 @Injectable()
@@ -325,16 +331,33 @@ export class AgmarknetApiService {
     params: VistaarLocationParams,
     logCtx: string,
   ): Promise<any[]> {
+    const isRange = !!(params.fromDate && params.toDate);
+    if (!isRange && !params.date) {
+      throw new Error(
+        "fetchVistaarLocation requires either date or both fromDate and toDate",
+      );
+    }
+    if (isRange) {
+      this.assertRangeWithinLimit(params.fromDate!, params.toDate!);
+    }
+
+    const dateParams = isRange
+      ? { from_date: params.fromDate!, to_date: params.toDate! }
+      : { date: params.date! };
+    const dateLabel = isRange
+      ? `from_date=${params.fromDate} to_date=${params.toDate}`
+      : `date=${params.date}`;
+
     const data = await this.getWithAuth(
       "/v1/fetch-agmarknet-vistaar-location",
       {
         commodity_id: String(params.commodityId),
-        date: params.date,
+        ...dateParams,
         lat: String(params.lat),
         long: String(params.lon),
       },
       logCtx,
-      `vistaar-location commodity_id=${params.commodityId} date=${params.date} lat=${params.lat} lon=${params.lon}`,
+      `vistaar-location commodity_id=${params.commodityId} ${dateLabel} lat=${params.lat} lon=${params.lon}`,
     );
     const records = this.normalizeRecords(data);
     this.logger.log(`MANDI vistaar-location returned rows=${records.length}`, logCtx);
@@ -350,6 +373,27 @@ export class AgmarknetApiService {
 
   todayDdMmYyyy(): string {
     return format(new Date(), "dd-MM-yyyy");
+  }
+
+  private assertRangeWithinLimit(fromDate: string, toDate: string): void {
+    const from = parse(fromDate, "dd-MM-yyyy", new Date());
+    const to = parse(toDate, "dd-MM-yyyy", new Date());
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw new TypeError(
+        `Invalid fromDate/toDate for vistaar-location: ${fromDate} / ${toDate}`,
+      );
+    }
+    const days = differenceInCalendarDays(to, from);
+    if (days < 0) {
+      throw new Error(
+        `fromDate must not be after toDate: ${fromDate} / ${toDate}`,
+      );
+    }
+    if (days > MAX_VISTAAR_LOCATION_RANGE_DAYS) {
+      throw new Error(
+        `Date range exceeds Agmarknet's ${MAX_VISTAAR_LOCATION_RANGE_DAYS}-day limit: ${fromDate} to ${toDate} (${days} days)`,
+      );
+    }
   }
 
   parseDateTag(value: string | undefined): string {

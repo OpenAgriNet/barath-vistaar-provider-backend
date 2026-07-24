@@ -99,9 +99,12 @@ export class MandiService {
       };
     }
 
+    const dateSummary = intent.fromDate
+      ? `fromDate=${intent.fromDate} toDate=${intent.toDate}`
+      : `date=${intent.date}`;
     this.logMandi(
       body,
-      `MANDI parsed intent commodity=${intent.commodityName} location=${intent.locationName} lat=${intent.lat} lon=${intent.lon} date=${intent.date}`,
+      `MANDI parsed intent commodity=${intent.commodityName} location=${intent.locationName} lat=${intent.lat} lon=${intent.lon} ${dateSummary}`,
     );
 
     this.logMandi(body, `MANDI looking up commodity in Postgres query=${intent.commodityName}`);
@@ -141,6 +144,8 @@ export class MandiService {
           lat: intent.lat,
           lon: intent.lon,
           date: intent.date,
+          fromDate: intent.fromDate,
+          toDate: intent.toDate,
         },
         logCtx,
       );
@@ -154,7 +159,7 @@ export class MandiService {
         catalog.providers?.[0]?.items?.length ?? 0;
       this.logMandi(
         body,
-        `MANDI returning on_search items=${itemCount} location=${intent.locationName} date=${intent.date}`,
+        `MANDI returning on_search items=${itemCount} location=${intent.locationName} ${dateSummary}`,
       );
       if (itemCount > 0) {
         const firstTags =
@@ -173,41 +178,63 @@ export class MandiService {
         message: { catalog },
       };
     } catch (err) {
-      const ax = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
-      const apiError = ax?.response?.data?.error;
-      const message = apiError || (err as Error).message;
-      this.logger.error(
-        `MANDI search failed commodity=${intent.commodityName} location=${intent.locationName} error=${message}`,
-        ax?.response?.data ?? "",
-        this.logCtx(body),
-      );
-
-      const isAuthFailure =
-        ax?.response?.status === 401 ||
-        ax?.response?.status === 403 ||
-        /generate-dynamic-token failed status=40[13]/i.test(message) ||
-        /token rejected|invalid token|agmarknet auth/i.test(message);
-
-      if (isAuthFailure) {
-        const inactive = /inactive/i.test(message) || /inactive/i.test(apiError || "");
-        const htmlForbidden = /<!doctype html>|403 Forbidden/i.test(message);
-        return {
-          context: onSearchContext,
-          message: {
-            catalog: this.catalogCompact.errorCatalog(
-              "agmarknet_auth_failed",
-              inactive
-                ? "Agmarknet credentials inactive for data APIs — contact Agmarknet to activate BV-Data-Agmarknet"
-                : htmlForbidden
-                  ? "Agmarknet blocked this server (HTTP 403 HTML). Credentials may work from other networks — allowlist this host egress IP for api.agmarknet.gov.in or fix AGMARKNET_ACCESS_NAME/PASSWORD on this host"
-                  : "Agmarknet token/auth failed — verify MANDI_TOKEN, AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
-            ),
-          },
-        };
-      }
-
-      throw err;
+      return this.handleMandiSearchError(err, body, intent, onSearchContext);
     }
+  }
+
+  private handleMandiSearchError(
+    err: unknown,
+    body: { context: any; message?: any },
+    intent: { commodityName: string; locationName: string },
+    onSearchContext: any,
+  ): { context: any; message?: any } {
+    const ax = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
+    const apiError = ax?.response?.data?.error;
+    const message = apiError || (err as Error).message;
+    this.logger.error(
+      `MANDI search failed commodity=${intent.commodityName} location=${intent.locationName} error=${message}`,
+      ax?.response?.data ?? "",
+      this.logCtx(body),
+    );
+
+    const isAuthFailure =
+      ax?.response?.status === 401 ||
+      ax?.response?.status === 403 ||
+      /generate-dynamic-token failed status=40[13]/i.test(message) ||
+      /token rejected|invalid token|agmarknet auth/i.test(message);
+
+    if (isAuthFailure) {
+      const inactive = /inactive/i.test(message) || /inactive/i.test(apiError || "");
+      const htmlForbidden = /<!doctype html>|403 Forbidden/i.test(message);
+      return {
+        context: onSearchContext,
+        message: {
+          catalog: this.catalogCompact.errorCatalog(
+            "agmarknet_auth_failed",
+            inactive
+              ? "Agmarknet credentials inactive for data APIs — contact Agmarknet to activate BV-Data-Agmarknet"
+              : htmlForbidden
+                ? "Agmarknet blocked this server (HTTP 403 HTML). Credentials may work from other networks — allowlist this host egress IP for api.agmarknet.gov.in or fix AGMARKNET_ACCESS_NAME/PASSWORD on this host"
+                : "Agmarknet token/auth failed — verify MANDI_TOKEN, AGMARKNET_ACCESS_NAME and AGMARKNET_PASSWORD",
+          ),
+        },
+      };
+    }
+
+    const isInvalidDateRange =
+      /exceeds agmarknet's \d+-day limit|fromdate must not be after todate|invalid fromdate\/todate/i.test(
+        message,
+      );
+    if (isInvalidDateRange) {
+      return {
+        context: onSearchContext,
+        message: {
+          catalog: this.catalogCompact.errorCatalog("invalid_date_range", message),
+        },
+      };
+    }
+
+    throw err;
   }
 
   /**
