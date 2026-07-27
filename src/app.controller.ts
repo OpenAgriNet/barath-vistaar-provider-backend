@@ -23,6 +23,7 @@ import { PmkisanGrievanceService } from "./services/pmkisan-grievance/pmkisan-gr
 import { PmfbyGrievanceService } from "./services/pmfby/pmfby-greviance.service";
 import { SathiService } from "./services/sathi/sathi.service";
 import { SmamService } from "./services/smam/smam.service";
+import { SchemeQdrantService } from "./services/scheme-qdrant/scheme-qdrant.service";
 import { LoggerService } from './services/logger/logger.service';
 
 @Controller("")
@@ -34,7 +35,9 @@ export class AppController {
     private readonly pmkisanGrievanceService: PmkisanGrievanceService,
     private readonly pmfbyGrievanceService: PmfbyGrievanceService,
     private readonly sathiSeedService: SathiService,
-    private readonly smamService: SmamService, private readonly logger: LoggerService) {}
+    private readonly smamService: SmamService,
+    private readonly schemeQdrantService: SchemeQdrantService,
+    private readonly logger: LoggerService) {}
 
   @Get()
   getHello(): string {
@@ -103,8 +106,14 @@ export class AppController {
         return this.appService.masuamGramaWeatherForecastSearch(body);
 
       case "schemes-agri":
-        this.logger.log("Inside schemes-agri search");
+        // Hasura structured scheme catalog only — unchanged
+        this.logger.log("Inside schemes-agri search (Hasura)");
         return this.appService.handlePmKisanSearch(body);
+
+      case "scheme-agri-qdrant":
+        // Vector document search only (Qdrant) — no Hasura
+        this.logger.log("Inside scheme-agri-qdrant search (Qdrant vector only)");
+        return this.schemeQdrantService.search(body);
 
       case "icar-schemes":
         this.logger.log("Inside Icar search");
@@ -187,6 +196,10 @@ export class AppController {
         return "weather-forecast";
       case categoryName === "Weather-Forecast-Mausamgram":
         return "weather-forecast-mausamgram";
+      // Qdrant vector document search — must match before schemes-agri / generic scheme routes
+      case categoryCode === "scheme-agri-qdrant" ||
+        categoryNameLower === "scheme-agri-qdrant":
+        return "scheme-agri-qdrant";
       case categoryCode === "schemes-agri" || categoryNameLower === "schemes-agri":
         return "schemes-agri";
       case categoryCode === "icar-schemes" || categoryNameLower === "icar-schemes":

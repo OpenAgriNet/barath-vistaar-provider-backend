@@ -31,6 +31,9 @@ import { GfrService } from "./services/gfr/gfr.service";
 import { PmkisanGrievanceService } from "./services/pmkisan-grievance/pmkisan-grievance.service";
 import { SathiService } from "./services/sathi/sathi.service";
 import { SmamService } from "./services/smam/smam.service";
+import { SchemeQdrantService } from "./services/scheme-qdrant/scheme-qdrant.service";
+import { EmbeddingService } from "./services/scheme-qdrant/embedding.service";
+import { QdrantClientService } from "./services/scheme-qdrant/qdrant.client";
 
 @Module({
   imports: [
@@ -74,6 +77,9 @@ import { SmamService } from "./services/smam/smam.service";
     PmfbyGrievanceService,
     SathiService,
     SmamService,
+    EmbeddingService,
+    QdrantClientService,
+    SchemeQdrantService,
   ],
 })
 export class AppModule {}

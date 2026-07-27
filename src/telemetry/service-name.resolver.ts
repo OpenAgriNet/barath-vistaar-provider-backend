@@ -43,6 +43,8 @@ const ROUTE_TO_SERVICE: Record<string, string> = {
   'weather-forecast-mausamgram': 'imd',
   'schemes-agri': 'scheme',
   'icar-schemes': 'scheme',
+  // Qdrant vector document search (not Hasura)
+  'scheme-agri-qdrant': 'scheme-qdrant',
   mandi: 'mandi',
   'mandi-location': 'mandi',
   pmfby: 'pmfby',
@@ -62,6 +64,7 @@ const ROUTE_TO_SERVICE: Record<string, string> = {
 
 const ROUTE_NAME_BY_SERVICE: Record<string, string> = {
   scheme: 'schemes-agri',
+  'scheme-qdrant': 'scheme-agri-qdrant',
   mandi: 'price-discovery',
   imd: 'weather-forecast',
   advisory: 'knowledge-advisory',
@@ -76,7 +79,7 @@ const ROUTE_NAME_BY_SERVICE: Record<string, string> = {
   'pmkisan-installment-status': 'pmkisan-installment-status',
 };
 
-/** Known scheme-discovery category codes (intent.category.descriptor.code). */
+/** Hasura structured scheme-discovery category codes (not Qdrant). */
 const SCHEME_CATEGORY_CODES = new Set([
   'schemes-agri',
   'scheme-agri',
@@ -85,12 +88,39 @@ const SCHEME_CATEGORY_CODES = new Set([
   'schemes',
 ]);
 
+/** Qdrant vector document search category (no Hasura). */
+const SCHEME_QDRANT_CATEGORY_CODES = new Set([
+  'scheme-agri-qdrant',
+]);
+
+export function isSchemeQdrantCategory(body?: BecknBody): boolean {
+  if (!body) return false;
+  const code = String(
+    body.message?.intent?.category?.descriptor?.code ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  const name = String(
+    body.message?.intent?.category?.descriptor?.name ?? '',
+  )
+    .trim()
+    .toLowerCase();
+  return (
+    SCHEME_QDRANT_CATEGORY_CODES.has(code) ||
+    SCHEME_QDRANT_CATEGORY_CODES.has(name)
+  );
+}
+
 /**
- * Scheme catalogue / discovery search: only when category code (or name) is an
- * explicit scheme code like "schemes-agri". Domain schemes:vistaar alone is NOT enough.
+ * Hasura scheme catalogue / discovery search: only when category code (or name)
+ * is an explicit scheme code like "schemes-agri". Domain schemes:vistaar alone
+ * is NOT enough. Does NOT include scheme-agri-qdrant (vector path).
  */
 export function isSchemeCategory(body?: BecknBody): boolean {
   if (!body) return false;
+  // Vector path is separate from Hasura scheme discovery
+  if (isSchemeQdrantCategory(body)) return false;
+
   const code = String(
     body.message?.intent?.category?.descriptor?.code ?? '',
   )
@@ -105,11 +135,13 @@ export function isSchemeCategory(body?: BecknBody): boolean {
   if (SCHEME_CATEGORY_CODES.has(code) || SCHEME_CATEGORY_CODES.has(name)) {
     return true;
   }
-  // Other scheme-* category codes (not grievance / pmkisan)
+  // Other scheme-* category codes (not grievance / pmkisan / qdrant)
   if (
     (code.includes('scheme') || name.includes('scheme')) &&
     !code.includes('grievance') &&
-    !name.includes('grievance')
+    !name.includes('grievance') &&
+    !code.includes('qdrant') &&
+    !name.includes('qdrant')
   ) {
     return true;
   }
@@ -160,7 +192,12 @@ function resolveSchemeRoute(body: BecknBody): string {
 }
 
 function resolveMobilityRoute(body: BecknBody): string {
-  // 1) Scheme discovery ONLY when intent.category.descriptor.code is schemes-agri (etc.)
+  // 0) Qdrant vector scheme documents (no Hasura)
+  if (isSchemeQdrantCategory(body)) {
+    return 'scheme-agri-qdrant';
+  }
+
+  // 1) Hasura scheme discovery ONLY when intent.category.descriptor.code is schemes-agri (etc.)
   if (isSchemeCategory(body)) {
     return resolveSchemeRoute(body);
   }
@@ -246,7 +283,12 @@ export function resolveServiceName(
     return 'unknown';
   }
 
-  // 1) Explicit scheme category code → scheme
+  // 0) Qdrant vector scheme document search (not Hasura)
+  if (isSchemeQdrantCategory(body)) {
+    return 'scheme-qdrant';
+  }
+
+  // 1) Explicit Hasura scheme category code → scheme
   if (isSchemeCategory(body)) {
     return 'scheme';
   }
