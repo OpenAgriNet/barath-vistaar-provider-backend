@@ -1,0 +1,216 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Bharat Provider — Scheme Document Search (Beckn)",
+    "description": "Postman collection for testing Scheme Document Search migrated to Beckn Provider.\n\n## Main API\n\n**POST** `{{baseUrl}}/mobility/search`\n\nRoute is selected by `message.intent.category.descriptor.code` (or `.name`):\n\n| Category code | Backend | Description |\n|---|---|---|\n| `scheme-agri-qdrant` | Qdrant vector search | Document chunks from scheme guidelines (NEW) |\n| `schemes-agri` | Hasura | Structured scheme catalog (unchanged) |\n\n## Query fields (scheme-agri-qdrant)\n\n- **Query text**: `message.intent.item.descriptor.name` (required), or tags `search_params.query`\n- **Scheme hint (optional)**: `message.intent.item.descriptor.code` or tags `scheme_code`\n- **top_k (optional, 1–20)**: tags `top_k` (default 10)\n\n## Indexed scheme codes\n\n`cdp`, `cotton-mission`, `e-nam`, `makhana`, `midh`, `mif`, `nbm`, `nmeo`, `pkvy`, `pm-ddky`, `pm-kmy`, `pm-rkvy`, `pulses-mission`, `rwbcis`\n\n## Prerequisites\n\n1. Provider running (`npm run start:dev`) — default port **3000**\n2. For Qdrant path: `QDRANT_URL` + `EMBEDDING_SERVICE_URL` configured in `.env`\n\n## How to import\n\nPostman → Import → select this file → set `baseUrl` collection variable if needed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "transaction_id",
+      "value": "{{$guid}}"
+    },
+    {
+      "key": "message_id",
+      "value": "{{$guid}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET Hello (health check)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Simple health check. Confirms the provider is up."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Scheme Document Search (Qdrant) — scheme-agri-qdrant",
+      "description": "Vector document search via Qdrant. Does **not** use Hasura.\n\n**Endpoint:** `POST {{baseUrl}}/mobility/search`\n\nMust set category code/name to `scheme-agri-qdrant`.",
+      "item": [
+        {
+          "name": "1. Search by natural language query (auto scheme resolve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"What is the eligibility for Paramparagat Krishi Vikas Yojana?\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "## Primary API to test Qdrant scheme document search\n\n**POST** `{{baseUrl}}/mobility/search`\n\n### Routing\nCategory `scheme-agri-qdrant` routes to `SchemeQdrantService.search()`.\n\n### Request\n- Query is taken from `message.intent.item.descriptor.name`\n- Scheme is auto-resolved from the query text (e.g. PKVY aliases)\n\n### Success response shape\n```json\n{\n  \"context\": { \"action\": \"on_search\", ... },\n  \"message\": {\n    \"catalog\": {\n      \"descriptor\": { \"code\": \"scheme-agri-qdrant\", \"name\": \"Scheme Document Search\" },\n      \"tags\": [{ \"list\": [ /* query, status, hit-count, resolved-scheme-code */ ] }],\n      \"providers\": [{\n        \"id\": \"scheme-documents\",\n        \"items\": [{ \"id\": \"...\", \"descriptor\": { \"long_desc\": \"chunk text\" }, \"tags\": [...] }]\n      }]\n    }\n  }\n}\n```\n\n### Status values (in catalog tags)\n- `success` — hits returned\n- `not_found` — known scheme, no matching chunks\n- `scheme_unavailable` — scheme not in index / could not resolve\n- `failed` — missing query\n- `error` — Qdrant/embedding misconfigured or runtime failure"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Search with explicit scheme_code (pkvy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"Who is eligible and what documents are required?\",\n          \"code\": \"pkvy\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Explicit scheme hint via `item.descriptor.code = \"pkvy\"`.\n\nQuery still comes from `item.descriptor.name`."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Search via search_params tags (query + scheme_code + top_k)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"\"\n        },\n        \"tags\": [\n          {\n            \"descriptor\": {\n              \"code\": \"search_params\",\n              \"name\": \"Search Params\"\n            },\n            \"list\": [\n              {\n                \"descriptor\": { \"code\": \"query\", \"name\": \"Query\" },\n                \"value\": \"What benefits and subsidy does MIDH provide for horticulture?\"\n              },\n              {\n                \"descriptor\": { \"code\": \"scheme_code\", \"name\": \"Scheme Code\" },\n                \"value\": \"midh\"\n              },\n              {\n                \"descriptor\": { \"code\": \"top_k\", \"name\": \"Top K\" },\n                \"value\": \"5\"\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Uses tag group `search_params`:\n- `query` / `search_value` — search text (used if descriptor.name is empty)\n- `scheme_code` / `scheme-code` — scheme filter\n- `top_k` / `topk` — result limit (clamped 1–20)"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Application process query (e-NAM)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"How to apply for e-NAM registration?\",\n          \"code\": \"e-nam\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Intent classification should pick up *application* focus and may run supplemental search."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Benefits / support query (PM-RKVY)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"What financial assistance and benefits under PM RKVY?\",\n          \"code\": \"pm-rkvy\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Support/benefits intent with scheme code `pm-rkvy`."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Missing query (expect status=failed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"scheme-agri-qdrant\",\n          \"name\": \"scheme-agri-qdrant\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Negative test: empty query → catalog status `failed` with message about missing search query. Still HTTP 200 with Beckn envelope."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Structured Schemes (Hasura) — schemes-agri",
+      "description": "Unchanged Hasura structured scheme catalog path.\n\n**Endpoint:** same `POST {{baseUrl}}/mobility/search` with category `schemes-agri`.",
+      "item": [
+        {
+          "name": "Hasura schemes-agri search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"domain\": \"schemes:vistaar\",\n    \"action\": \"search\",\n    \"version\": \"1.1.0\",\n    \"bap_id\": \"postman-bap.local\",\n    \"bap_uri\": \"http://localhost:5000\",\n    \"transaction_id\": \"{{$guid}}\",\n    \"message_id\": \"{{$guid}}\",\n    \"timestamp\": \"{{$isoTimestamp}}\",\n    \"ttl\": \"PT30S\"\n  },\n  \"message\": {\n    \"intent\": {\n      \"category\": {\n        \"descriptor\": {\n          \"code\": \"schemes-agri\",\n          \"name\": \"schemes-agri\"\n        }\n      },\n      \"item\": {\n        \"descriptor\": {\n          \"name\": \"\"\n        }\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mobility/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["mobility", "search"]
+            },
+            "description": "Structured catalog from Hasura (`handlePmKisanSearch`).\n\nOptional filters:\n- `category.descriptor.code` → `usecase` filter\n- `item.descriptor.name` → `scheme_id` filter\n\nRequires Hasura to be configured and reachable."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

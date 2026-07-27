@@ -61,13 +61,16 @@ export class SchemeQdrantService {
     }
 
     if (!this.embeddingService.isConfigured()) {
-      this.logger.error('[scheme-qdrant] EMBEDDING_SERVICE_URL not configured');
+      this.logger.error(
+        '[scheme-qdrant] Embedding not configured (local Transformers.js or EMBEDDING_SERVICE_URL)',
+      );
       return buildSchemeQdrantOnSearch({
         context,
         query,
         results: [],
         status: 'error',
-        message: 'Embedding service is not configured on the provider',
+        message:
+          'Embedding is not configured on the provider (local JS model via HF_HOME, or EMBEDDING_SERVICE_URL)',
       });
     }
 
