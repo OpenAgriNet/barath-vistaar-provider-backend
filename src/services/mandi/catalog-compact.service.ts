@@ -89,8 +89,19 @@ export class CatalogCompactService {
     const parts = String(rec?.["Arrival Date"] ?? "").split("-");
     if (parts.length !== 3) return -1;
     const [day, month, year] = parts.map(Number);
-    const t = new Date(year, month - 1, day).getTime();
-    return Number.isNaN(t) ? -1 : t;
+    const d = new Date(year, month - 1, day);
+    // new Date rolls impossible dates over — 31-02-2025 becomes 03-03-2025 —
+    // which would sort a malformed row ahead of real prices. Round-trip the
+    // components to reject those, same check as parseDdMmYyyyToDate.
+    if (
+      Number.isNaN(d.getTime()) ||
+      d.getDate() !== day ||
+      d.getMonth() !== month - 1 ||
+      d.getFullYear() !== year
+    ) {
+      return -1;
+    }
+    return d.getTime();
   }
 
   /**
