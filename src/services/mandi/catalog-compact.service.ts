@@ -80,16 +80,59 @@ export class CatalogCompactService {
     };
   }
 
+  /**
+   * Sort key for "Arrival Date". Agmarknet returns "dd-MM-yyyy" strings, which
+   * cannot be compared lexicographically, so parse before sorting.
+   * Rows with a missing/unparseable date sort last.
+   */
+  private arrivalTime(rec: any): number {
+    const parts = String(rec?.["Arrival Date"] ?? "").split("-");
+    if (parts.length !== 3) return -1;
+    const [day, month, year] = parts.map(Number);
+    const t = new Date(year, month - 1, day).getTime();
+    return Number.isNaN(t) ? -1 : t;
+  }
+
+  /**
+   * Keep only the first row for each distinct "Arrival Date". Caller must sort
+   * first; because Array#sort is stable, the row kept for a date is the one
+   * Agmarknet returned earliest for it (its nearest-market ordering).
+   */
+  private oneRowPerDate(records: any[]): any[] {
+    const seen = new Set<string>();
+    return records.filter((rec) => {
+      const key = String(rec?.["Arrival Date"] ?? "").trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   buildCatalogFromRecords(
     records: any[],
     lat: number,
     lon: number,
     limit = 5,
+    /**
+     * Date-range queries only. Collapses the list to one row per date so the
+     * catalog reads 28-07, 22-07, 21-07... Must stay off for single-date
+     * queries, where every row shares a date and deduping would leave one item.
+     */
+    oneItemPerDate = false,
   ): BecknMandiCatalog {
     const items: any[] = [];
     let itemId = 0;
 
-    for (const rec of records.slice(0, limit)) {
+    // Date-range queries return rows across many dates in Agmarknet's own
+    // (market-grouped) order, so the newest price is not necessarily first.
+    // Sort newest-first before truncating, otherwise `limit` can drop exactly
+    // the rows a "latest price" lookup is asking for.
+    const ordered = [...records].sort(
+      (a, b) => this.arrivalTime(b) - this.arrivalTime(a),
+    );
+    const selected = oneItemPerDate ? this.oneRowPerDate(ordered) : ordered;
+
+    for (const rec of selected.slice(0, limit)) {
       if (!rec || typeof rec !== "object") continue;
       itemId += 1;
       items.push(this.buildItemFromRecord(rec, itemId));
@@ -134,7 +177,16 @@ export class CatalogCompactService {
     _commodity: CommodityRow,
     limit = 5,
   ): BecknMandiCatalog {
-    return this.buildCatalogFromRecords(raw, intent.lat, intent.lon, limit);
+    // A range asks "how did the price move", so give one row per date. A single
+    // date asks "what is the price near me", so keep every market for that date.
+    const isRange = !!(intent.fromDate && intent.toDate);
+    return this.buildCatalogFromRecords(
+      raw,
+      intent.lat,
+      intent.lon,
+      limit,
+      isRange,
+    );
   }
 
   emptyCatalog(): BecknMandiCatalog {
