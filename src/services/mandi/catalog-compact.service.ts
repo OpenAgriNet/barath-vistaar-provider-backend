@@ -186,7 +186,7 @@ export class CatalogCompactService {
     raw: any[],
     intent: MandiLocationIntent,
     _commodity: CommodityRow,
-    limit = 5,
+    limit = 10,
   ): BecknMandiCatalog {
     // A range asks "how did the price move", so give one row per date. A single
     // date asks "what is the price near me", so keep every market for that date.
