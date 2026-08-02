@@ -190,13 +190,12 @@ export class CatalogCompactService {
   ): BecknMandiCatalog {
     // A range asks "how did the price move", so give one row per date. A single
     // date asks "what is the price near me", so keep every market for that date.
-    const isRange = !!(intent.fromDate && intent.toDate);
     return this.buildCatalogFromRecords(
       raw,
       intent.lat,
       intent.lon,
       limit,
-      isRange,
+      false,
     );
   }
 
