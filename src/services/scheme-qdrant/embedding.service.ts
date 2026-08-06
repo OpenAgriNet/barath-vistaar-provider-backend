@@ -221,7 +221,7 @@ export class EmbeddingService implements OnModuleInit {
       throw new Error('Local JS embedder returned empty vector');
     }
 
-    this.logger.log(
+    this.logger.debug(
       `[scheme-qdrant] Local JS embed dims=${vector.length} elapsedMs=${
         Date.now() - started
       }`,
@@ -266,7 +266,7 @@ export class EmbeddingService implements OnModuleInit {
     }
 
     const url = `${baseUrl}/embed`;
-    this.logger.log(
+    this.logger.debug(
       `[scheme-qdrant] Embedding query via ${url} model=${this.getModel()}`,
     );
 

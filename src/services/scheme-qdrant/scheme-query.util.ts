@@ -3,11 +3,7 @@
  * Ported from bharat-oan-api/helpers/scheme_qdrant_search.py — no Hasura.
  */
 
-import {
-  getBuiltinSchemeList,
-  QDRANT_SCHEME_CODES,
-  SchemeListItem,
-} from './scheme-registry';
+import { SchemeListItem } from './scheme-registry';
 
 export interface SchemeSearchHit {
   score: number;
@@ -255,7 +251,7 @@ function aliasInQuery(alias: string, query: string): boolean {
 
 export function resolveSchemeCode(
   query: string,
-  schemeList: SchemeListItem[] = getBuiltinSchemeList(),
+  schemeList: SchemeListItem[] = [],
 ): string | null {
   const q = query.toLowerCase();
   let bestLen = 0;
@@ -295,7 +291,7 @@ function stripIntentTerms(query: string): string {
 
 export function queryNamesUnindexedScheme(
   query: string,
-  schemeList: SchemeListItem[] = getBuiltinSchemeList(),
+  schemeList: SchemeListItem[] = [],
 ): boolean {
   if (resolveSchemeCode(query, schemeList)) return false;
   const tokens = stripIntentTerms(query)
@@ -695,19 +691,32 @@ export function rerankResults(
   });
 }
 
+/**
+ * `knownSchemeCodes` is the live master_catalog registry. When it's empty
+ * (registry not yet loaded / DB unreachable) this skips the allow-list check
+ * rather than dropping every result — see SchemeCatalogService's fail-open
+ * design.
+ */
 export function filterResultsByScheme(
   results: SchemeSearchHit[],
   schemeCode: string | null,
+  knownSchemeCodes: Set<string> = new Set(),
 ): SchemeSearchHit[] {
   if (schemeCode) {
     return results.filter((r) => r.scheme_code === schemeCode);
   }
+  if (knownSchemeCodes.size === 0) {
+    return results;
+  }
   return results.filter(
-    (r) => r.scheme_code && QDRANT_SCHEME_CODES.has(r.scheme_code),
+    (r) => r.scheme_code && knownSchemeCodes.has(r.scheme_code),
   );
 }
 
-export function isKnownSchemeCode(code: string | null | undefined): boolean {
+export function isKnownSchemeCode(
+  code: string | null | undefined,
+  knownSchemeCodes: Set<string>,
+): boolean {
   if (!code) return false;
-  return QDRANT_SCHEME_CODES.has(code.toLowerCase());
+  return knownSchemeCodes.has(code.toLowerCase());
 }

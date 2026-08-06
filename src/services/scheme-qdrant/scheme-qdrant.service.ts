@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { EmbeddingService } from './embedding.service';
 import { QdrantClientService } from './qdrant.client';
 import { buildSchemeQdrantOnSearch } from './scheme-qdrant.catalog';
-import { getBuiltinSchemeList } from './scheme-registry';
+import { SchemeCatalogService } from './scheme-catalog.service';
 import {
   classifyQueryIntent,
   classifySchemeSectionFocus,
@@ -30,16 +30,24 @@ export class SchemeQdrantService {
   constructor(
     private readonly embeddingService: EmbeddingService,
     private readonly qdrantClient: QdrantClientService,
+    private readonly schemeCatalog: SchemeCatalogService,
   ) {}
 
   async search(body: any): Promise<any> {
     const context = body?.context || {};
+    const txn = context.transaction_id || context.message_id || '-';
     const started = Date.now();
 
     const { query, schemeCodeHint, topK } = this.parseIntent(body);
 
+    this.logger.log(
+      `[scheme-qdrant] → txn=${txn} query=${JSON.stringify(query)} schemeHint=${
+        schemeCodeHint || '-'
+      } topK=${topK}`,
+    );
+
     if (!query?.trim()) {
-      this.logger.warn('[scheme-qdrant] Missing query in intent');
+      this.logger.warn(`[scheme-qdrant] ← txn=${txn} status=failed reason=missing_query`);
       return buildSchemeQdrantOnSearch({
         context,
         query: '',
@@ -50,7 +58,7 @@ export class SchemeQdrantService {
     }
 
     if (!this.qdrantClient.isConfigured()) {
-      this.logger.error('[scheme-qdrant] QDRANT_URL not configured');
+      this.logger.error(`[scheme-qdrant] ← txn=${txn} status=error reason=qdrant_not_configured`);
       return buildSchemeQdrantOnSearch({
         context,
         query,
@@ -62,7 +70,7 @@ export class SchemeQdrantService {
 
     if (!this.embeddingService.isConfigured()) {
       this.logger.error(
-        '[scheme-qdrant] Embedding not configured (local Transformers.js or EMBEDDING_SERVICE_URL)',
+        `[scheme-qdrant] ← txn=${txn} status=error reason=embedding_not_configured`,
       );
       return buildSchemeQdrantOnSearch({
         context,
@@ -75,23 +83,37 @@ export class SchemeQdrantService {
     }
 
     try {
-      const schemeList = getBuiltinSchemeList();
+      const schemeList = this.schemeCatalog.getSchemeList();
+      const knownSchemeCodes = this.schemeCatalog.getKnownSchemeCodes();
       let schemeCode: string | null = null;
+      let schemeSource: 'hint' | 'resolved' | 'auto' = 'auto';
 
-      if (schemeCodeHint && isKnownSchemeCode(schemeCodeHint)) {
+      if (schemeCodeHint && isKnownSchemeCode(schemeCodeHint, knownSchemeCodes)) {
         schemeCode = schemeCodeHint.toLowerCase();
+        schemeSource = 'hint';
       } else {
         schemeCode = resolveSchemeCode(query, schemeList);
+        if (schemeCode) schemeSource = 'resolved';
       }
 
+      if (schemeCodeHint && schemeSource !== 'hint') {
+        this.logger.debug(
+          `[scheme-qdrant] txn=${txn} schemeHint=${schemeCodeHint} not in registry(size=${knownSchemeCodes.size}); falling back to query resolution`,
+        );
+      }
+
+      // Only short-circuit when the registry is actually loaded — an empty
+      // registry (master_catalog unreachable) must not be read as "no scheme
+      // matches", or every query would wrongly resolve to scheme_unavailable.
       if (
         !schemeCode &&
+        schemeList.length > 0 &&
         queryNamesUnindexedScheme(query, schemeList)
       ) {
         this.logger.log(
-          `[scheme-qdrant] Query names scheme outside index: ${JSON.stringify(
-            query,
-          )}`,
+          `[scheme-qdrant] ← txn=${txn} status=scheme_unavailable reason=query_names_unindexed_scheme elapsedMs=${
+            Date.now() - started
+          }`,
         );
         return buildSchemeQdrantOnSearch({
           context,
@@ -108,12 +130,6 @@ export class SchemeQdrantService {
       const expanded = expandQueryForSearch(query, intent, sectionFocus);
       const fetchK = Math.max(topK * 8, 40);
 
-      this.logger.log(
-        `[scheme-qdrant] query=${JSON.stringify(query)} scheme=${
-          schemeCode || '(auto)'
-        } intent=${intent || '-'} focus=${sectionFocus || '-'} topK=${topK}`,
-      );
-
       const queryVector = await this.embeddingService.embedQuery(expanded);
       let results = await this.qdrantClient.querySchemePoints(queryVector, {
         schemeCode,
@@ -123,6 +139,7 @@ export class SchemeQdrantService {
       // Supplemental search when intent needs a missing section
       const supplemental = this.supplementalSearchConfig(sectionFocus, intent);
       if (supplemental) {
+        const before = results.length;
         results = await this.mergeSupplemental(
           query,
           results,
@@ -130,15 +147,26 @@ export class SchemeQdrantService {
           schemeCode,
           fetchK,
         );
+        if (results.length > before) {
+          this.logger.debug(
+            `[scheme-qdrant] txn=${txn} supplemental=${supplemental.neededSection} addedHits=${
+              results.length - before
+            }`,
+          );
+        }
       }
 
-      results = filterResultsByScheme(results, schemeCode);
+      results = filterResultsByScheme(results, schemeCode, knownSchemeCodes);
       results = rerankResults(query, results);
       results = finalizeResults(results, sectionFocus, intent, topK);
 
       const elapsed = Date.now() - started;
+      const status = results.length ? 'success' : schemeCode ? 'not_found' : 'scheme_unavailable';
+
       this.logger.log(
-        `[scheme-qdrant] done hits=${results.length} elapsedMs=${elapsed}`,
+        `[scheme-qdrant] ← txn=${txn} scheme=${schemeCode || 'auto'}(${schemeSource}) intent=${
+          intent || '-'
+        } focus=${sectionFocus || '-'} hits=${results.length} status=${status} elapsedMs=${elapsed}`,
       );
 
       if (!results.length) {
@@ -147,7 +175,7 @@ export class SchemeQdrantService {
           query,
           resolvedSchemeCode: schemeCode,
           results: [],
-          status: schemeCode ? 'not_found' : 'scheme_unavailable',
+          status,
           message: schemeCode
             ? 'Could not find this information in the document index'
             : 'Scheme not available in the document index',
@@ -163,7 +191,9 @@ export class SchemeQdrantService {
       });
     } catch (err: any) {
       this.logger.error(
-        `[scheme-qdrant] search failed: ${err?.message || err}`,
+        `[scheme-qdrant] ← txn=${txn} status=error elapsedMs=${Date.now() - started} err=${
+          err?.message || err
+        }`,
         err?.stack,
       );
       return buildSchemeQdrantOnSearch({
