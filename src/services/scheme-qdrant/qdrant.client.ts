@@ -78,12 +78,7 @@ export class QdrantClientService {
       headers['api-key'] = apiKey;
     }
 
-    this.logger.log(
-      `[scheme-qdrant] Qdrant query collection=${collection} limit=${limit} scheme_code=${
-        options.schemeCode || '(any)'
-      }`,
-    );
-
+    const started = Date.now();
     const response = await axios.post(
       url,
       {
@@ -100,6 +95,11 @@ export class QdrantClientService {
     );
 
     if (response.status < 200 || response.status >= 300) {
+      this.logger.error(
+        `[scheme-qdrant] Qdrant query failed collection=${collection} scheme_code=${
+          options.schemeCode || '(any)'
+        } httpStatus=${response.status}`,
+      );
       throw new Error(
         `Qdrant query failed HTTP ${response.status}: ${JSON.stringify(
           response.data,
@@ -114,9 +114,17 @@ export class QdrantClientService {
       [];
 
     if (!Array.isArray(points)) {
-      this.logger.warn('[scheme-qdrant] Unexpected Qdrant response shape');
+      this.logger.warn(
+        `[scheme-qdrant] Unexpected Qdrant response shape collection=${collection}`,
+      );
       return [];
     }
+
+    this.logger.debug(
+      `[scheme-qdrant] Qdrant query collection=${collection} scheme_code=${
+        options.schemeCode || '(any)'
+      } limit=${limit} hits=${points.length} elapsedMs=${Date.now() - started}`,
+    );
 
     return points.map((hit: any) => this.hitToResult(hit));
   }

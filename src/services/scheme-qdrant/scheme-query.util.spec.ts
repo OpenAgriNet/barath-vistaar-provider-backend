@@ -8,18 +8,40 @@ import {
   SchemeSearchHit,
 } from './scheme-query.util';
 import { buildSchemeQdrantOnSearch } from './scheme-qdrant.catalog';
+import { SchemeListItem } from './scheme-registry';
+
+const TEST_SCHEME_LIST: SchemeListItem[] = [
+  {
+    scheme_code: 'mif',
+    scheme_name: 'Micro Irrigation Fund',
+    scheme_aliases: ['MIF', 'micro irrigation fund', 'Micro Irrigation Fund scheme'],
+  },
+  {
+    scheme_code: 'e-nam',
+    scheme_name: 'Electronic National Agriculture Market',
+    scheme_aliases: [
+      'e-NAM',
+      'eNAM',
+      'enam',
+      'national agriculture market',
+      'electronic nam',
+      'electronic national agriculture market',
+    ],
+  },
+];
+const TEST_SCHEME_CODES = new Set(TEST_SCHEME_LIST.map((s) => s.scheme_code));
 
 describe('scheme-query.util (vector path only)', () => {
   it('resolves MIF alias to mif', () => {
-    expect(resolveSchemeCode('Micro Irrigation Fund eligibility')).toBe('mif');
-    expect(resolveSchemeCode('what is MIF subsidy')).toBe('mif');
+    expect(resolveSchemeCode('Micro Irrigation Fund eligibility', TEST_SCHEME_LIST)).toBe('mif');
+    expect(resolveSchemeCode('what is MIF subsidy', TEST_SCHEME_LIST)).toBe('mif');
   });
 
   it('resolves e-NAM aliases', () => {
-    expect(resolveSchemeCode('eNAM registration process')).toBe('e-nam');
-    expect(resolveSchemeCode('electronic national agriculture market')).toBe(
-      'e-nam',
-    );
+    expect(resolveSchemeCode('eNAM registration process', TEST_SCHEME_LIST)).toBe('e-nam');
+    expect(
+      resolveSchemeCode('electronic national agriculture market', TEST_SCHEME_LIST),
+    ).toBe('e-nam');
   });
 
   it('classifies eligibility intent and section focus', () => {
@@ -39,8 +61,8 @@ describe('scheme-query.util (vector path only)', () => {
   });
 
   it('recognizes known scheme codes only from registry', () => {
-    expect(isKnownSchemeCode('mif')).toBe(true);
-    expect(isKnownSchemeCode('pmkisan')).toBe(false);
+    expect(isKnownSchemeCode('mif', TEST_SCHEME_CODES)).toBe(true);
+    expect(isKnownSchemeCode('pmkisan', TEST_SCHEME_CODES)).toBe(false);
   });
 
   it('finalizes eligibility_with_exclusion with balanced sections', () => {

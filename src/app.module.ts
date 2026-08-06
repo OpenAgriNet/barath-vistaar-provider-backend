@@ -34,6 +34,7 @@ import { SmamService } from "./services/smam/smam.service";
 import { SchemeQdrantService } from "./services/scheme-qdrant/scheme-qdrant.service";
 import { EmbeddingService } from "./services/scheme-qdrant/embedding.service";
 import { QdrantClientService } from "./services/scheme-qdrant/qdrant.client";
+import { SchemeCatalogService } from "./services/scheme-qdrant/scheme-catalog.service";
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { QdrantClientService } from "./services/scheme-qdrant/qdrant.client";
     SmamService,
     EmbeddingService,
     QdrantClientService,
+    SchemeCatalogService,
     SchemeQdrantService,
   ],
 })
