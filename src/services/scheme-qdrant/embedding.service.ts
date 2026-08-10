@@ -31,15 +31,17 @@ export class EmbeddingService implements OnModuleInit {
   private loadedModelName: string | null = null;
 
   async onModuleInit(): Promise<void> {
-    if (this.shouldUseLocal()) {
-      // Warm model in background so first search is faster
-      this.ensureLocalExtractor().catch((err) => {
-        this.logger.warn(
-          `[scheme-qdrant] Local JS embedder warm-up failed: ${
-            err?.message || err
-          }`,
-        );
-      });
+    if (!this.shouldUseLocal()) return;
+    // Block app startup on model load so the instance isn't marked ready
+    // for traffic until it can actually serve a fast first request.
+    try {
+      await this.ensureLocalExtractor();
+    } catch (err: any) {
+      this.logger.warn(
+        `[scheme-qdrant] Local JS embedder warm-up failed: ${
+          err?.message || err
+        }`,
+      );
     }
   }
 
