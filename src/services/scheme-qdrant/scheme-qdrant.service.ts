@@ -136,6 +136,21 @@ export class SchemeQdrantService {
         limit: fetchK,
       });
 
+      // The resolved scheme_code may not match what's actually tagged on
+      // ingested chunks (registry/payload drift). Rather than returning
+      // nothing, fall back to searching by the query text alone across all
+      // scheme documents so a relevant answer still comes back.
+      let effectiveSchemeCode = schemeCode;
+      if (!results.length && schemeCode) {
+        this.logger.warn(
+          `[scheme-qdrant] txn=${txn} no hits for scheme_code=${schemeCode}; retrying unfiltered by query`,
+        );
+        results = await this.qdrantClient.querySchemePoints(queryVector, {
+          limit: fetchK,
+        });
+        effectiveSchemeCode = null;
+      }
+
       // Supplemental search when intent needs a missing section
       const supplemental = this.supplementalSearchConfig(sectionFocus, intent);
       if (supplemental) {
@@ -144,7 +159,7 @@ export class SchemeQdrantService {
           query,
           results,
           supplemental,
-          schemeCode,
+          effectiveSchemeCode,
           fetchK,
         );
         if (results.length > before) {
@@ -156,7 +171,7 @@ export class SchemeQdrantService {
         }
       }
 
-      results = filterResultsByScheme(results, schemeCode, knownSchemeCodes);
+      results = filterResultsByScheme(results, effectiveSchemeCode, knownSchemeCodes);
       results = rerankResults(query, results);
       results = finalizeResults(results, sectionFocus, intent, topK);
 
@@ -164,7 +179,9 @@ export class SchemeQdrantService {
       const status = results.length ? 'success' : schemeCode ? 'not_found' : 'scheme_unavailable';
 
       this.logger.log(
-        `[scheme-qdrant] ← txn=${txn} scheme=${schemeCode || 'auto'}(${schemeSource}) intent=${
+        `[scheme-qdrant] ← txn=${txn} scheme=${schemeCode || 'auto'}(${schemeSource}) effectiveScheme=${
+          effectiveSchemeCode || 'auto'
+        } intent=${
           intent || '-'
         } focus=${sectionFocus || '-'} hits=${results.length} status=${status} elapsedMs=${elapsed}`,
       );
