@@ -1,4 +1,4 @@
-import { SCHEME_SEARCH_SOURCE } from './scheme-registry';
+import { getStateDisplayName } from './scheme-registry';
 import { SchemeSearchHit } from './scheme-query.util';
 
 export type CatalogStatus =
@@ -39,6 +39,10 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
     const schemeName = String(hit.scheme_name || '');
     const schemeCode = String(hit.scheme_code || '');
     const stateCode = String(hit.state_code || '');
+    const stateName = getStateDisplayName(stateCode);
+    const sourceLabel = stateName
+      ? `${schemeName || schemeCode} (${stateName})`
+      : schemeName || schemeCode;
     const text = String(hit.text || '');
     const id =
       String(hit.chunk_id || '') ||
@@ -73,6 +77,11 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
             {
               descriptor: { code: 'state_code', name: 'State Code' },
               value: stateCode,
+              display: true,
+            },
+            {
+              descriptor: { code: 'source', name: 'Source' },
+              value: sourceLabel,
               display: true,
             },
             {
@@ -162,10 +171,6 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
               {
                 descriptor: { code: 'hit-count', name: 'Hit Count' },
                 value: String(items.length),
-              },
-              {
-                descriptor: { code: 'source', name: 'Source' },
-                value: SCHEME_SEARCH_SOURCE,
               },
               {
                 descriptor: { code: 'search-backend', name: 'Search Backend' },
