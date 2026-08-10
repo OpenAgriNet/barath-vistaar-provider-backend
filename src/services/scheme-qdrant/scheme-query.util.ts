@@ -9,6 +9,7 @@ export interface SchemeSearchHit {
   score: number;
   scheme_code?: string;
   scheme_name?: string;
+  state_code?: string;
   text: string;
   doc_id?: string;
   chunk_id?: string;

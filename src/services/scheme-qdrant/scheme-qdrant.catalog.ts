@@ -38,6 +38,7 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
     const score = Number(hit.score) || 0;
     const schemeName = String(hit.scheme_name || '');
     const schemeCode = String(hit.scheme_code || '');
+    const stateCode = String(hit.state_code || '');
     const text = String(hit.text || '');
     const id =
       String(hit.chunk_id || '') ||
@@ -67,6 +68,11 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
             {
               descriptor: { code: 'scheme_name', name: 'Scheme Name' },
               value: schemeName,
+              display: true,
+            },
+            {
+              descriptor: { code: 'state_code', name: 'State Code' },
+              value: stateCode,
               display: true,
             },
             {

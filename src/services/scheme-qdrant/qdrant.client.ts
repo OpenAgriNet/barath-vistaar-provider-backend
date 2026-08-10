@@ -136,6 +136,9 @@ export class QdrantClientService {
       score: Number(hit?.score ?? 0),
       scheme_code: payload.scheme_code,
       scheme_name: payload.scheme_name,
+      // docs-pipeline stores the ingesting state as `instance` (see its
+      // auth/tenancy.py), not as a separate state_code field.
+      state_code: payload.instance,
       text,
       doc_id: payload.doc_id,
       chunk_id: payload.chunk_id,
