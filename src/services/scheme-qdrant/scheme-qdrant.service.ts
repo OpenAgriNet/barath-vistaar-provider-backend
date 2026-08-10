@@ -223,6 +223,12 @@ export class SchemeQdrantService {
     }
   }
 
+  private getDefaultTopK(): number {
+    const raw = process.env.SCHEME_QDRANT_DEFAULT_TOP_K;
+    const n = parseInt(raw || '', 10);
+    return Number.isFinite(n) && n > 0 ? n : 10;
+  }
+
   private parseIntent(body: any): {
     query: string;
     schemeCodeHint: string | null;
@@ -234,7 +240,7 @@ export class SchemeQdrantService {
 
     let query = String(descriptor.name || '').trim();
     let schemeCodeHint = String(descriptor.code || '').trim() || null;
-    let topK = 10;
+    let topK = this.getDefaultTopK();
 
     const tags: any[] = Array.isArray(item?.tags) ? item.tags : [];
     for (const tag of tags) {
