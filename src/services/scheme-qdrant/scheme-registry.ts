@@ -23,7 +23,7 @@ export const CATEGORY_CODE_SCHEME_AGRI_QDRANT = 'scheme-agri-qdrant';
  * Bharat Vistaar platform-wide documents (pipeline/auth/tenancy.py).
  */
 const STATE_NAME_BY_CODE: Record<string, string> = {
-  BV: 'BharatVistaar',
+  BV: 'Bharat Vistaar',
   MH: 'Maharashtra',
   BH: 'Bihar',
   UP: 'Uttar Pradesh',
