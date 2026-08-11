@@ -82,8 +82,9 @@ export class SchemeQdrantService {
       });
     }
 
+    const schemeList = this.schemeCatalog.getSchemeList();
+
     try {
-      const schemeList = this.schemeCatalog.getSchemeList();
       const knownSchemeCodes = this.schemeCatalog.getKnownSchemeCodes();
       let schemeCode: string | null = null;
       let schemeSource: 'hint' | 'resolved' | 'auto' = 'auto';
@@ -205,6 +206,7 @@ export class SchemeQdrantService {
         resolvedSchemeCode: schemeCode,
         results,
         status: 'success',
+        schemeList,
       });
     } catch (err: any) {
       this.logger.error(
