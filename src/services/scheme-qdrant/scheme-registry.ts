@@ -48,6 +48,16 @@ const STATE_NAME_BY_CODE: Record<string, string> = {
   DL: 'Delhi',
   JK: 'Jammu and Kashmir',
   LA: 'Ladakh',
+  MN: 'Manipur',
+  ML: 'Meghalaya',
+  MZ: 'Mizoram',
+  NL: 'Nagaland',
+  SK: 'Sikkim',
+  TR: 'Tripura',
+  AN: 'Andaman and Nicobar Islands',
+  CH: 'Chandigarh',
+  DN: 'Dadra and Nagar Haveli and Daman and Diu',
+  PY: 'Puducherry',
 };
 
 /** Full display name for a state_code, falling back to the raw code if unmapped. */
