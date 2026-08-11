@@ -18,9 +18,12 @@ export const DEFAULT_COLLECTION = 'schemes-index';
 export const CATEGORY_CODE_SCHEME_AGRI_QDRANT = 'scheme-agri-qdrant';
 
 /**
- * Mirrors docs-pipeline's DEFAULT_STATE_CODES (pipeline/auth/keycloak_admin.py).
- * `bv` is not a real state — it's docs-pipeline's PORTAL_INSTANCE for
- * Bharat Vistaar platform-wide documents (pipeline/auth/tenancy.py).
+ * The first 24 entries (MH..LA) mirror docs-pipeline's DEFAULT_STATE_CODES
+ * (pipeline/auth/keycloak_admin.py) exactly. `bv` is not a real state — it's
+ * docs-pipeline's PORTAL_INSTANCE for Bharat Vistaar platform-wide documents
+ * (pipeline/auth/tenancy.py). The remaining UT codes below (MN..PY) are not
+ * part of docs-pipeline's DEFAULT_STATE_CODES list, but ingestion doesn't
+ * restrict `instance` to that list, so they're kept here for display only.
  */
 const STATE_NAME_BY_CODE: Record<string, string> = {
   BV: 'Bharat Vistaar',
