@@ -38,7 +38,8 @@ export function buildSchemeQdrantOnSearch(options: BuildCatalogOptions) {
     const score = Number(hit.score) || 0;
     const schemeName = String(hit.scheme_name || '');
     const schemeCode = String(hit.scheme_code || '');
-    const stateCode = String(hit.state_code || '');
+    const rawStateCode = String(hit.state_code || '').trim();
+    const stateCode = rawStateCode || 'BV';
     const stateName = getStateDisplayName(stateCode);
     const sourceLabel = stateName
       ? `${schemeName || schemeCode} (${stateName})`
