@@ -264,6 +264,10 @@ export class AppController {
       case "pmfby-agri":
         this.logger.log("INSIDE PMFBY INIT...");
         return this.appService.handlePmfbyInit(body);
+
+      case "aif-agri":
+        this.logger.log("INSIDE AIF INIT...");
+        return this.appService.handleAifInit(body);
   
       case "shc-discovery":
         this.logger.log("INSIDE SHC INIT...");
