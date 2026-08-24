@@ -10,64 +10,6 @@ export interface AifTag {
 }
 
 /**
- * Farmer-facing wording per doc §6. `retryable: false` marks the cases where retrying
- * cannot succeed, so the agent does not offer to try again.
- */
-export const AIF_ERROR_COPY: Record<
-  string,
-  { short_desc: string; retryable: boolean }
-> = {
-  beneficiary_not_found: {
-    short_desc:
-      "No beneficiary was found with that ID. Please check the number and share it again.",
-    retryable: true,
-  },
-  mobile_not_registered: {
-    short_desc:
-      "There is no mobile number registered against this beneficiary ID, so an OTP cannot be sent. The farmer must contact their AIF office to update their registered mobile number.",
-    retryable: false,
-  },
-  invalid_mobile_on_record: {
-    short_desc:
-      "The mobile number on record is not valid. The farmer should contact their AIF office.",
-    retryable: false,
-  },
-  otp_service_unavailable: {
-    short_desc:
-      "The AIF system could not be reached to send the OTP. Please try again in a few minutes.",
-    retryable: true,
-  },
-  otp_invalid: {
-    short_desc: "That OTP did not match. Please ask for the OTP again.",
-    retryable: true,
-  },
-  otp_expired: {
-    short_desc: "The OTP has expired. A new OTP must be requested.",
-    retryable: true,
-  },
-  otp_attempts_exceeded: {
-    short_desc:
-      "Too many incorrect OTP attempts. The farmer must wait 5 minutes before trying again.",
-    retryable: false,
-  },
-  loan_application_not_found: {
-    short_desc:
-      "No loan application was found with that number. Please check the number and share it again.",
-    retryable: true,
-  },
-  session_expired: {
-    short_desc:
-      "The verified session has expired. A new OTP is needed before the status can be checked.",
-    retryable: true,
-  },
-  aif_unavailable: {
-    short_desc:
-      "The AIF system cannot be reached right now. Please try again in a few minutes.",
-    retryable: true,
-  },
-};
-
-/**
  * Builds an on_init / on_status envelope, following the shapes already used in this
  * codebase:
  *

@@ -1,8 +1,4 @@
-import {
-  AIF_ERROR_COPY,
-  buildAifGrievanceResponse,
-  buildAifResponse,
-} from "./aif-response";
+import { buildAifGrievanceResponse, buildAifResponse } from "./aif-response";
 import { AifSupportTicket } from "./aif.service";
 
 const body = {
@@ -224,30 +220,5 @@ describe("buildAifGrievanceResponse", () => {
       descriptor: { code: "source", name: "Source" },
       value: "AIF Portal",
     });
-  });
-});
-
-describe("AIF_ERROR_COPY", () => {
-  it.each([
-    "mobile_not_registered",
-    "invalid_mobile_on_record",
-    "otp_attempts_exceeded",
-  ])("marks %s as not retryable", (code) => {
-    // Doc §6: retrying these cannot succeed, so the agent must not offer a retry.
-    expect(AIF_ERROR_COPY[code].retryable).toBe(false);
-  });
-
-  it.each([
-    "beneficiary_not_found",
-    "otp_invalid",
-    "loan_application_not_found",
-  ])("marks %s as retryable", (code) => {
-    expect(AIF_ERROR_COPY[code].retryable).toBe(true);
-  });
-
-  it("never exposes an AIF error code to the farmer", () => {
-    for (const entry of Object.values(AIF_ERROR_COPY)) {
-      expect(entry.short_desc).not.toMatch(/BV\d{5}/);
-    }
   });
 });

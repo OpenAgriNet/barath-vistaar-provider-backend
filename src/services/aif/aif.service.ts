@@ -25,23 +25,11 @@ export interface AifVerifiedSession {
 }
 
 /**
- * Farmer-facing failure codes. The AIF error codes and HTTP statuses are collapsed
- * onto these so the agent can pick wording without seeing AIF internals.
+ * An AIF failure. `message` is the message AIF returned, passed through untouched —
+ * as with PMFBY and PM Kisan, the upstream wording is what the farmer is shown.
  */
-export type AifErrorCode =
-  | "beneficiary_not_found"
-  | "mobile_not_registered"
-  | "invalid_mobile_on_record"
-  | "otp_service_unavailable"
-  | "otp_invalid"
-  | "otp_expired"
-  | "otp_attempts_exceeded"
-  | "loan_application_not_found"
-  | "session_expired"
-  | "aif_unavailable";
-
 export class AifError extends Error {
-  constructor(readonly code: AifErrorCode, message: string) {
+  constructor(message: string) {
     super(message);
     this.name = "AifError";
   }
@@ -96,78 +84,23 @@ export class AifService {
   }
 
   /**
-   * Collapses an AIF failure onto a farmer-facing code. `errorCode` alone is not enough:
-   * BV40401 means "API key missing" on a 401 but "beneficiary not found" on a 404.
+   * Turns an AIF failure into an error carrying AIF's own message. The status, error
+   * code and ExceptionMessage (where AIF puts the real cause on a 500) are logged for
+   * diagnosis; only `Message`, AIF's user-level text, is passed on.
    */
   private toAifError(status: number, payload: any): AifError {
     const errorCode = String(this.field(payload, "ErrorCode") ?? "");
     const message = String(this.field(payload, "Message") ?? "").trim();
 
-    switch (errorCode) {
-      case "BV42201":
-        return new AifError(
-          "mobile_not_registered",
-          "No mobile number is registered against this beneficiary ID."
-        );
-      case "BV40005":
-        return new AifError(
-          "invalid_mobile_on_record",
-          "The mobile number on record is not valid."
-        );
-      case "BV50301":
-      case "BV50302":
-      case "BV50401":
-        return new AifError(
-          "otp_service_unavailable",
-          "The AIF OTP service is not responding."
-        );
-      case "BV40402":
-        // Bad API key is our misconfiguration, not the farmer's problem.
-        this.logger.error("AIF rejected the API key (BV40402)");
-        return new AifError("aif_unavailable", "AIF is not reachable.");
-      case "BV40401":
-        if (status === 404) {
-          return new AifError(
-            "beneficiary_not_found",
-            "No beneficiary found for that ID."
-          );
-        }
-        this.logger.error("AIF API key missing from request (BV40401)");
-        return new AifError("aif_unavailable", "AIF is not reachable.");
-    }
-
-    if (status === 429) {
-      return new AifError(
-        "otp_attempts_exceeded",
-        "Maximum OTP attempts exceeded."
-      );
-    }
-    if (status === 401) {
-      return new AifError("session_expired", "The AIF session has expired.");
-    }
-    if (status === 400 && /expired/i.test(message)) {
-      return new AifError("otp_expired", "The OTP has expired.");
-    }
-    if (status === 400 && /otp/i.test(message)) {
-      // Covers "Invalid OTP." and "OTP has already been used."
-      return new AifError("otp_invalid", "That OTP did not match.");
-    }
-    if (status === 404) {
-      return new AifError(
-        "beneficiary_not_found",
-        "No beneficiary found for that ID."
-      );
-    }
-
-    // Nothing matched: log the upstream status and message so an AIF-side failure is
-    // diagnosable from our logs. ExceptionMessage is where AIF puts the real cause on
-    // a 500; the stack trace is deliberately not logged.
     this.logger.error(
-      `AIF returned an unmapped error status=${status} message=${message || "(none)"} exception=${String(
+      `AIF error status=${status} code=${errorCode || "(none)"} message=${
+        message || "(none)"
+      } exception=${String(
         this.field(payload, "ExceptionMessage") ?? "(none)",
       ).slice(0, 300)}`,
     );
-    return new AifError("aif_unavailable", "AIF is not reachable.");
+
+    return new AifError(message || `AIF request failed (status ${status}).`);
   }
 
   private async request(config: Parameters<typeof axios.request>[0]) {
@@ -181,11 +114,12 @@ export class AifService {
       if (error?.response) {
         throw this.toAifError(error.response.status, error.response.data);
       }
-      // Timeout, DNS, connection refused — the farmer just sees "try again shortly".
+      // Timeout, DNS, connection refused — there is no AIF message to pass on, so the
+      // transport error itself is what is reported.
       this.logger.error(
         `AIF request failed without a response: ${error?.message ?? error}`
       );
-      throw new AifError("aif_unavailable", "AIF is not reachable.");
+      throw new AifError(String(error?.message ?? "AIF could not be reached."));
     }
   }
 
@@ -265,13 +199,11 @@ export class AifService {
 
     if (typeof data !== "string") {
       // The only object AIF returns here is { Message: "Invalid loanApplicationNumber." }
-      throw new AifError(
-        "loan_application_not_found",
-        String(this.field(data, "Message") ?? "Loan application not found.")
-      );
+      const message = String(this.field(data, "Message") ?? "").trim();
+      throw new AifError(message || "Loan application not found.");
     }
     if (/not found/i.test(data)) {
-      throw new AifError("loan_application_not_found", data);
+      throw new AifError(data);
     }
     return data;
   }
@@ -291,10 +223,8 @@ export class AifService {
 
     if (typeof data === "string") return [];
     if (!Array.isArray(data)) {
-      throw new AifError(
-        "aif_unavailable",
-        String(this.field(data, "Message") ?? "Unexpected response from AIF.")
-      );
+      const message = String(this.field(data, "Message") ?? "").trim();
+      throw new AifError(message || "Unexpected response from AIF.");
     }
 
     return data.map((ticket: any) => ({

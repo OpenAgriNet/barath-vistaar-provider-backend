@@ -69,7 +69,7 @@ describe("AifService", () => {
       expect(config.url).toBe("https://aif.test/api/validate_beneficiaries/");
     });
 
-    it("maps a 404 beneficiary lookup to beneficiary_not_found", async () => {
+    it("returns the AIF message for a 404 beneficiary lookup", async () => {
       mockedAxios.request.mockRejectedValue(
         httpError(404, {
           Success: false,
@@ -80,11 +80,11 @@ describe("AifService", () => {
       );
 
       await expect(service.sendOtp("999999")).rejects.toMatchObject({
-        code: "beneficiary_not_found",
+        message: "Beneficiary not found.",
       });
     });
 
-    it("does not leak a bad API key to the farmer", async () => {
+    it("logs the status and error code behind the message", async () => {
       mockedAxios.request.mockRejectedValue(
         httpError(401, {
           Success: false,
@@ -94,12 +94,12 @@ describe("AifService", () => {
         })
       );
 
-      // Same ErrorCode family as beneficiary_not_found, but a 401 — must not be
-      // reported as a farmer-correctable problem.
       await expect(service.sendOtp("106545")).rejects.toMatchObject({
-        code: "aif_unavailable",
+        message: "Invalid API Key.",
       });
-      expect(logger.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining("status=401 code=BV40402")
+      );
     });
 
     it("reads the lowercase-keyed BV42201 body", async () => {
@@ -114,29 +114,39 @@ describe("AifService", () => {
       );
 
       await expect(service.sendOtp("106545")).rejects.toMatchObject({
-        code: "mobile_not_registered",
+        message: "Registered mobile number not available.",
       });
     });
 
-    it.each([
-      ["BV50301", 503],
-      ["BV50302", 503],
-      ["BV50401", 504],
-    ])("maps %s to otp_service_unavailable", async (errorCode, status) => {
+    it("does not pass ExceptionMessage on to the caller", async () => {
       mockedAxios.request.mockRejectedValue(
-        httpError(status, { Success: false, ErrorCode: errorCode })
+        httpError(500, {
+          Success: false,
+          Message: "An error occurred.",
+          ExceptionMessage: "Object reference not set to an instance.",
+        })
       );
 
       await expect(service.sendOtp("106545")).rejects.toMatchObject({
-        code: "otp_service_unavailable",
+        message: "An error occurred.",
       });
     });
 
-    it("maps a network failure with no response to aif_unavailable", async () => {
+    it("falls back to the status when AIF sends no message", async () => {
+      mockedAxios.request.mockRejectedValue(
+        httpError(503, { Success: false, ErrorCode: "BV50301" })
+      );
+
+      await expect(service.sendOtp("106545")).rejects.toMatchObject({
+        message: "AIF request failed (status 503).",
+      });
+    });
+
+    it("reports the transport error when there is no response", async () => {
       mockedAxios.request.mockRejectedValue(new Error("ECONNREFUSED"));
 
       await expect(service.sendOtp("106545")).rejects.toMatchObject({
-        code: "aif_unavailable",
+        message: "ECONNREFUSED",
       });
     });
   });
@@ -155,31 +165,17 @@ describe("AifService", () => {
     });
 
     it.each([
-      ["Invalid OTP.", "otp_invalid"],
-      ["OTP has already been used.", "otp_invalid"],
-      ["OTP has expired. Please generate a new OTP.", "otp_expired"],
-    ])("maps %s to %s", async (message, expected) => {
+      "Invalid OTP.",
+      "OTP has already been used.",
+      "OTP has expired. Please generate a new OTP.",
+      "Maximum OTP attempts exceeded. Please try again after 5 minutes.",
+    ])("returns %s unchanged", async (message) => {
       mockedAxios.request.mockRejectedValue(
         httpError(400, { Success: false, StatusCode: 400, Message: message })
       );
 
       await expect(service.verifyOtp("106545", "000000")).rejects.toMatchObject(
-        { code: expected }
-      );
-    });
-
-    it("maps 429 to otp_attempts_exceeded", async () => {
-      mockedAxios.request.mockRejectedValue(
-        httpError(429, {
-          Success: false,
-          StatusCode: 429,
-          Message:
-            "Maximum OTP attempts exceeded. Please try again after 5 minutes.",
-        })
-      );
-
-      await expect(service.verifyOtp("106545", "000000")).rejects.toMatchObject(
-        { code: "otp_attempts_exceeded" }
+        { message }
       );
     });
   });
@@ -212,16 +208,16 @@ describe("AifService", () => {
 
       await expect(
         service.getLoanStatus("999999", "tok")
-      ).rejects.toMatchObject({ code: "loan_application_not_found" });
+      ).rejects.toMatchObject({ message: "Application Number not found." });
     });
 
-    it("maps the 400 object response to loan_application_not_found", async () => {
+    it("returns the message from the object response", async () => {
       mockedAxios.request.mockResolvedValue({
         data: { Message: "Invalid loanApplicationNumber." },
       } as any);
 
       await expect(service.getLoanStatus("", "tok")).rejects.toMatchObject({
-        code: "loan_application_not_found",
+        message: "Invalid loanApplicationNumber.",
       });
     });
   });
@@ -265,7 +261,7 @@ describe("AifService", () => {
       );
     });
 
-    it("maps an expired token to session_expired", async () => {
+    it("surfaces an expired token as the message AIF sent", async () => {
       mockedAxios.request.mockRejectedValue(
         httpError(401, { Message: "Token has expired." })
       );
@@ -275,7 +271,7 @@ describe("AifService", () => {
       ).rejects.toBeInstanceOf(AifError);
       await expect(
         service.getSupportTickets("395412", "tok")
-      ).rejects.toMatchObject({ code: "session_expired" });
+      ).rejects.toMatchObject({ message: "Token has expired." });
     });
   });
 });

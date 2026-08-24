@@ -37,10 +37,9 @@ import { PmfbyService } from "./services/pmfby/pmfby.service";
 import { PmfbyGrievanceService } from "./services/pmfby/pmfby-greviance.service";
 import { WeatherForecastService } from "./services/weatherforecast/weatherforecast.service";
 import { MandiService } from "./services/mandi/mandi.service";
-import { AifError, AifService } from "./services/aif/aif.service";
+import { AifService } from "./services/aif/aif.service";
 import { AifSessionStore } from "./services/aif/aif-session.store";
 import {
-  AIF_ERROR_COPY,
   buildAifGrievanceResponse,
   buildAifResponse,
 } from "./services/aif/aif-response";
@@ -2065,18 +2064,21 @@ export class AppService {
     return providerId === "aif-agri" || itemId === "aif";
   }
 
-  /** Maps a thrown AIF failure onto the farmer-facing envelope. */
+  /**
+   * Returns the AIF failure with the message AIF sent, as PMFBY and PM Kisan do:
+   * one `aif_error` code, upstream wording.
+   */
   private buildAifError(
     body: any,
     action: "on_init" | "on_status",
     err: unknown,
   ) {
-    const code = err instanceof AifError ? err.code : "aif_unavailable";
-    const copy = AIF_ERROR_COPY[code] ?? AIF_ERROR_COPY.aif_unavailable;
+    const message = String(
+      (err as Error)?.message ?? "AIF could not be reached.",
+    );
 
-    // Log the technical detail; the farmer only ever sees `copy.short_desc`.
     this.logger.error(
-      `AIF ${action} failed [${code}]: ${(err as Error)?.message ?? err}`,
+      `AIF ${action} failed: ${message}`,
       undefined,
       `[aif][txn:${body?.context?.transaction_id ?? "unknown"}]`,
     );
@@ -2084,18 +2086,7 @@ export class AppService {
     return buildAifResponse(
       body,
       action,
-      {
-        code,
-        name: "Error",
-        short_desc: copy.short_desc,
-        list: [
-          {
-            code: "retryable",
-            name: "Retryable",
-            value: String(copy.retryable),
-          },
-        ],
-      },
+      { code: "aif_error", name: "Error", short_desc: message },
       { state: "FAILED" },
     );
   }
@@ -2251,10 +2242,16 @@ export class AppService {
     const session = this.aifSessionStore.get(transactionId);
     if (!session) {
       // Either never verified, or the token aged out — both need a fresh OTP.
-      return this.buildAifError(
+      return buildAifResponse(
         body,
         "on_status",
-        new AifError("session_expired", "No verified AIF session"),
+        {
+          code: "session_expired",
+          name: "Error",
+          short_desc:
+            "There is no verified session for this transaction_id. A new OTP is needed before the status can be checked.",
+        },
+        { state: "FAILED" },
       );
     }
 
@@ -2264,13 +2261,16 @@ export class AppService {
       requestedBeneficiaryId &&
       requestedBeneficiaryId !== session.beneficiaryId
     ) {
-      return this.buildAifError(
+      return buildAifResponse(
         body,
         "on_status",
-        new AifError(
-          "session_expired",
-          "beneficiary_id does not match the verified session",
-        ),
+        {
+          code: "session_expired",
+          name: "Error",
+          short_desc:
+            "beneficiary_id does not match the beneficiary verified on this transaction_id.",
+        },
+        { state: "FAILED" },
       );
     }
 
