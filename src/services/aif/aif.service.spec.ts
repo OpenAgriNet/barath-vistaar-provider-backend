@@ -161,6 +161,7 @@ describe("AifService", () => {
         token: "eyJhbGciOiJIUzI1NiJ9.fake.token",
         expiresIn: 3600,
         beneficiaryName: "Usha Sharma",
+        message: "Authentication successful.",
       });
     });
 
@@ -238,26 +239,28 @@ describe("AifService", () => {
       } as any);
 
       await expect(service.getSupportTickets("395412", "tok")).resolves.toEqual(
-        [
-          {
-            beneficiaryId: 395412,
-            loanApplicationNumber: 0,
-            subQueryType: "Update beneficiary details",
-            question: "Other",
-            description: "Revising from 2 acres to 4000 sq. mtr.",
-            status: "Submitted",
-          },
-        ]
+        {
+          tickets: [
+            {
+              beneficiaryId: 395412,
+              loanApplicationNumber: 0,
+              subQueryType: "Update beneficiary details",
+              question: "Other",
+              description: "Revising from 2 acres to 4000 sq. mtr.",
+              status: "Submitted",
+            },
+          ],
+        }
       );
     });
 
-    it("treats the no-tickets string as an empty list, not an error", async () => {
+    it("treats the no-tickets string as an empty list, keeping the message", async () => {
       mockedAxios.request.mockResolvedValue({
         data: "No support tickets found for this beneficiary.",
       } as any);
 
       await expect(service.getSupportTickets("395412", "tok")).resolves.toEqual(
-        []
+        { tickets: [], message: "No support tickets found for this beneficiary." }
       );
     });
 

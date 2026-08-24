@@ -358,9 +358,7 @@ export function resolveExternalServiceName(url?: string): string {
   if (normalized.includes('agrimachinery') || normalized.includes('smam')) {
     return 'smam';
   }
-  if (normalized.includes('agriinfra') || normalized.includes('amnex')) {
-    return 'aif';
-  }
+  if (normalized.includes('agriinfra')) return 'aif';
 
   return 'external';
 }

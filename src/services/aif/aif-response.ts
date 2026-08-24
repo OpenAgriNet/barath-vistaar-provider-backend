@@ -1,4 +1,4 @@
-import { AifSupportTicket } from "./aif.service";
+import { AifSupportTickets } from "./aif.service";
 
 export type AifAction = "on_init" | "on_status";
 
@@ -27,7 +27,7 @@ export function buildAifResponse(
   options: { state?: string; items?: any[] } = {}
 ) {
   const providerId = body?.message?.order?.provider?.id ?? "aif-agri";
-  const itemId = body?.message?.order?.items?.[0]?.id ?? "aif";
+  const itemId = body?.message?.order?.items?.[0]?.id ?? "aif-status";
 
   const outcomeTag = {
     display: true,
@@ -82,15 +82,16 @@ function aifContext(body: any, action: AifAction) {
 /** One item per ticket (doc §4.4). No tickets is a success, not an error (doc §6). */
 export function buildAifGrievanceResponse(
   body: any,
-  tickets: AifSupportTicket[]
+  { tickets, message }: AifSupportTickets
 ) {
-  const itemId = body?.message?.order?.items?.[0]?.id ?? "aif";
+  const itemId = body?.message?.order?.items?.[0]?.id ?? "aif-status";
 
   if (!tickets.length) {
     return buildAifResponse(body, "on_status", {
       code: "no_grievances",
       name: "Support Tickets",
-      short_desc: "There are no open grievances or support tickets.",
+      // AIF replies with its own sentence in place of the array; show that.
+      short_desc: message || "No support tickets found.",
       list: [
         { code: "ticket_count", name: "Ticket Count", value: "0" },
         { code: "source", name: "Source", value: "AIF Portal" },

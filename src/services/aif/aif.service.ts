@@ -13,6 +13,12 @@ export interface AifSupportTicket {
   status: string;
 }
 
+export interface AifSupportTickets {
+  tickets: AifSupportTicket[];
+  /** Sent by AIF only when there are no tickets, in place of the array. */
+  message?: string;
+}
+
 export interface AifOtpSent {
   maskedMobile: string;
   message: string;
@@ -22,6 +28,7 @@ export interface AifVerifiedSession {
   token: string;
   expiresIn: number;
   beneficiaryName?: string;
+  message: string;
 }
 
 /**
@@ -171,6 +178,7 @@ export class AifService {
       token,
       expiresIn: Number(this.field(data, "ExpiresIn")) || 3600,
       beneficiaryName: this.field<string>(beneficiary, "Beneficiary_Name"),
+      message: String(this.field(data, "Message") ?? "OTP verified."),
     };
   }
 
@@ -211,23 +219,24 @@ export class AifService {
   /**
    * Step 4 — support tickets. AIF returns an array, or the bare string
    * "No support tickets found for this beneficiary." when there are none.
-   * No tickets is a successful result, so it maps to an empty array rather than an error.
+   * No tickets is a successful result, so it maps to an empty list rather than an error,
+   * and AIF's wording comes back with it as `message`.
    */
   async getSupportTickets(
     beneficiaryId: string,
     token: string
-  ): Promise<AifSupportTicket[]> {
+  ): Promise<AifSupportTickets> {
     const data = await this.statusRequest("/support-tickets", token, {
       beneficiaryId: Number(beneficiaryId),
     });
 
-    if (typeof data === "string") return [];
+    if (typeof data === "string") return { tickets: [], message: data };
     if (!Array.isArray(data)) {
       const message = String(this.field(data, "Message") ?? "").trim();
       throw new AifError(message || "Unexpected response from AIF.");
     }
 
-    return data.map((ticket: any) => ({
+    const tickets = data.map((ticket: any) => ({
       beneficiaryId: Number(this.field(ticket, "BeneficiaryId") ?? 0),
       loanApplicationNumber: Number(
         this.field(ticket, "LoanApplicationNumber") ?? 0
@@ -237,5 +246,7 @@ export class AifService {
       description: String(this.field(ticket, "description") ?? ""),
       status: String(this.field(ticket, "Status") ?? ""),
     }));
+
+    return { tickets };
   }
 }

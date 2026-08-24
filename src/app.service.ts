@@ -2053,7 +2053,10 @@ export class AppService {
   // AIF (Agriculture Infrastructure Fund) — loan and grievance status
   // ---------------------------------------------------------------------------
 
-  /** True when the request targets the AIF provider (doc §4: provider aif-agri, item aif). */
+  /**
+   * True when the request targets the AIF provider (doc §4: provider aif-agri).
+   * Item id is `aif` on init and `aif-status` on status.
+   */
   private isAifRequest(body: any): boolean {
     const providerId = String(
       body?.message?.order?.provider?.id ?? "",
@@ -2061,7 +2064,9 @@ export class AppService {
     const itemId = String(
       body?.message?.order?.items?.[0]?.id ?? "",
     ).toLowerCase();
-    return providerId === "aif-agri" || itemId === "aif";
+    return (
+      providerId === "aif-agri" || itemId === "aif" || itemId === "aif-status"
+    );
   }
 
   /**
@@ -2182,8 +2187,7 @@ export class AppService {
         return buildAifResponse(body, "on_init", {
           code: "otp_verified",
           name: "OTP Verified",
-          short_desc:
-            "The beneficiary has been verified. Loan and grievance status can now be requested on the same transaction_id without a further OTP.",
+          short_desc: session.message,
           list: [
             ...(session.beneficiaryName
               ? [
@@ -2299,7 +2303,9 @@ export class AppService {
         return buildAifResponse(body, "on_status", {
           code: "loan_status",
           name: "Loan Application Status",
-          short_desc: `Loan application ${loanApplicationNumber} is ${status}.`,
+          // AIF answers with the status word itself (e.g. "Disbursed"); the loan number
+          // it applies to is in the list below.
+          short_desc: status,
           list: [
             {
               code: "loan_application_number",

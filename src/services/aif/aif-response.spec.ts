@@ -147,24 +147,29 @@ describe("buildAifResponse", () => {
     });
 
     expect(res.message.order.provider.id).toBe("aif-agri");
-    expect(res.message.order.items[0].id).toBe("aif");
+    expect(res.message.order.items[0].id).toBe("aif-status");
   });
 });
 
 describe("buildAifGrievanceResponse", () => {
   it("reports no tickets as a success, not an error", () => {
-    const res: any = buildAifGrievanceResponse(body, []);
+    const res: any = buildAifGrievanceResponse(body, {
+      tickets: [],
+      message: "No support tickets found for this beneficiary.",
+    });
 
     expect(res.message.order.state).toBe("COMPLETED");
     expect(res.message.order.tags[0].descriptor.code).toBe("no_grievances");
+    // AIF's own sentence, not wording of ours.
+    expect(res.message.order.tags[0].descriptor.short_desc).toBe(
+      "No support tickets found for this beneficiary."
+    );
   });
 
   it("returns one item per ticket", () => {
-    const res: any = buildAifGrievanceResponse(body, [
-      ticket(),
-      ticket({ loanApplicationNumber: 1330776 }),
-      ticket(),
-    ]);
+    const res: any = buildAifGrievanceResponse(body, {
+      tickets: [ticket(), ticket({ loanApplicationNumber: 1330776 }), ticket()],
+    });
 
     expect(res.message.order.items).toHaveLength(3);
     expect(res.message.order.items.map((i: any) => i.id)).toEqual([
@@ -177,7 +182,7 @@ describe("buildAifGrievanceResponse", () => {
   it("keeps the ticket count on the order when items are supplied", () => {
     // Voice reads out the count before offering detail (doc §7.4), so the summary
     // must survive alongside the per-ticket items.
-    const res: any = buildAifGrievanceResponse(body, [ticket(), ticket()]);
+    const res: any = buildAifGrievanceResponse(body, { tickets: [ticket(), ticket()] });
 
     const summary = res.message.order.tags[0];
     expect(summary.descriptor.short_desc).toBe("2 support ticket(s) found.");
@@ -189,9 +194,9 @@ describe("buildAifGrievanceResponse", () => {
 
   it("omits the loan application number when the ticket is not tied to one", () => {
     // AIF sends 0 rather than null for standalone tickets.
-    const res: any = buildAifGrievanceResponse(body, [
-      ticket({ loanApplicationNumber: 0 }),
-    ]);
+    const res: any = buildAifGrievanceResponse(body, {
+      tickets: [ticket({ loanApplicationNumber: 0 })],
+    });
 
     const codes = res.message.order.items[0].tags[0].list.map(
       (entry: any) => entry.descriptor.code
@@ -200,9 +205,9 @@ describe("buildAifGrievanceResponse", () => {
   });
 
   it("includes the loan application number when there is one", () => {
-    const res: any = buildAifGrievanceResponse(body, [
-      ticket({ loanApplicationNumber: 1330776 }),
-    ]);
+    const res: any = buildAifGrievanceResponse(body, {
+      tickets: [ticket({ loanApplicationNumber: 1330776 })],
+    });
 
     expect(res.message.order.items[0].tags[0].list).toContainEqual({
       descriptor: {
@@ -214,7 +219,7 @@ describe("buildAifGrievanceResponse", () => {
   });
 
   it("attributes every ticket to the AIF Portal", () => {
-    const res: any = buildAifGrievanceResponse(body, [ticket()]);
+    const res: any = buildAifGrievanceResponse(body, { tickets: [ticket()] });
 
     expect(res.message.order.items[0].tags[0].list).toContainEqual({
       descriptor: { code: "source", name: "Source" },
