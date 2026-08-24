@@ -37,6 +37,12 @@ import { PmfbyService } from "./services/pmfby/pmfby.service";
 import { PmfbyGrievanceService } from "./services/pmfby/pmfby-greviance.service";
 import { WeatherForecastService } from "./services/weatherforecast/weatherforecast.service";
 import { MandiService } from "./services/mandi/mandi.service";
+import { AifService } from "./services/aif/aif.service";
+import { AifSessionStore } from "./services/aif/aif-session.store";
+import {
+  buildAifGrievanceResponse,
+  buildAifResponse,
+} from "./services/aif/aif-response";
 const file = fs.readFileSync("./course.json", "utf8");
 const courseData = JSON.parse(file);
 
@@ -68,6 +74,8 @@ export class AppService {
     private readonly pmfbyGrievanceService: PmfbyGrievanceService,
     private readonly weatherForecastService: WeatherForecastService,
     private readonly mandiService: MandiService,
+    private readonly aifService: AifService,
+    private readonly aifSessionStore: AifSessionStore,
   ) {}
 
   private nameSpace = process.env.HASURA_NAMESPACE;
@@ -1052,6 +1060,13 @@ export class AppService {
         return await this.handlePmfbyGrievanceStatus(body);
       }
 
+      // Ahead of the order_id checks below: AIF status requests carry no OTP and no
+      // order_id, so they would otherwise fall through to "invalid_request".
+      if (this.isAifRequest(body)) {
+        this.logger.log("Routing to AIF status handler", logCtx);
+        return await this.handleAifStatus(body);
+      }
+
       const orderId = body.message?.order_id;
       const regNumber = body.message?.registration_number;
       const phoneNumber = body.message?.phone_number;
@@ -2031,6 +2046,298 @@ export class AppService {
         "pmfby_error",
         err?.message ?? "PMFBY grievance request failed",
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AIF (Agriculture Infrastructure Fund) — loan and grievance status
+  // ---------------------------------------------------------------------------
+
+  /**
+   * True when the request targets the AIF provider (doc §4: provider aif-agri).
+   * Item id is `aif` on init and `aif-status` on status.
+   */
+  private isAifRequest(body: any): boolean {
+    const providerId = String(
+      body?.message?.order?.provider?.id ?? "",
+    ).toLowerCase();
+    const itemId = String(
+      body?.message?.order?.items?.[0]?.id ?? "",
+    ).toLowerCase();
+    return (
+      providerId === "aif-agri" || itemId === "aif" || itemId === "aif-status"
+    );
+  }
+
+  /**
+   * Returns the AIF failure with the message AIF sent, as PMFBY and PM Kisan do:
+   * one `aif_error` code, upstream wording.
+   */
+  private buildAifError(
+    body: any,
+    action: "on_init" | "on_status",
+    err: unknown,
+  ) {
+    const message = String(
+      (err as Error)?.message ?? "AIF could not be reached.",
+    );
+
+    this.logger.error(
+      `AIF ${action} failed: ${message}`,
+      undefined,
+      `[aif][txn:${body?.context?.transaction_id ?? "unknown"}]`,
+    );
+
+    return buildAifResponse(
+      body,
+      action,
+      { code: "aif_error", name: "Error", short_desc: message },
+      { state: "FAILED" },
+    );
+  }
+
+  private getAifTagValue(body: any, code: string): string | undefined {
+    const tags =
+      body?.message?.order?.fulfillments?.[0]?.customer?.person?.tags ?? [];
+    return tags.find((tag: any) => tag?.descriptor?.code === code)?.value;
+  }
+
+  /**
+   * Reads a tag that AIF expects to be numeric (beneficiary ID, loan application
+   * number, OTP). Returns "" when it is not a plain run of digits; callers turn that
+   * into an invalid-input response rather than sending Number(...) => NaN upstream,
+   * which would serialise to null.
+   */
+  private getAifNumericTag(body: any, code: string): string {
+    const value = String(this.getAifTagValue(body, code) ?? "").trim();
+    return /^\d+$/.test(value) ? value : "";
+  }
+
+  /**
+   * AIF /init — doc §4.1 and §4.2. Two request types share this endpoint:
+   * get_otp sends the OTP, verify_otp exchanges it for a session token that is
+   * retained here and never returned to the agent.
+   */
+  public async handleAifInit(body: any) {
+    const transactionId = body?.context?.transaction_id;
+    const requestType = String(
+      this.getAifTagValue(body, "request_type") ?? "",
+    )
+      .toLowerCase()
+      .trim();
+    const beneficiaryId = this.getAifNumericTag(body, "beneficiary_id");
+
+    if (!transactionId) {
+      return buildAifResponse(body, "on_init", {
+        code: "missing_transaction_id",
+        name: "Missing Input",
+        short_desc:
+          "context.transaction_id is required, and must be identical across get_otp, verify_otp, and the status call.",
+      });
+    }
+
+    if (!beneficiaryId) {
+      return buildAifResponse(body, "on_init", {
+        code: "invalid_beneficiary_id",
+        name: "Missing Input",
+        short_desc:
+          "A numeric AIF beneficiary ID is required in fulfillment customer.person.tags.",
+      });
+    }
+
+    if (requestType === "get_otp") {
+      try {
+        const result = await this.aifService.sendOtp(beneficiaryId);
+        this.aifSessionStore.prune();
+        return buildAifResponse(body, "on_init", {
+          code: "otp_sent",
+          name: "OTP Sent",
+          short_desc: result.message,
+          list: [
+            {
+              code: "masked_mobile",
+              name: "Registered Mobile",
+              value: result.maskedMobile,
+            },
+          ],
+        });
+      } catch (err) {
+        return this.buildAifError(body, "on_init", err);
+      }
+    }
+
+    if (requestType === "verify_otp") {
+      const otp = this.getAifNumericTag(body, "otp");
+      if (!otp) {
+        return buildAifResponse(body, "on_init", {
+          code: "invalid_otp_format",
+          name: "Missing Input",
+          short_desc: "A numeric OTP is required to verify the beneficiary.",
+        });
+      }
+
+      try {
+        const session = await this.aifService.verifyOtp(beneficiaryId, otp);
+        this.aifSessionStore.set(transactionId, {
+          token: session.token,
+          beneficiaryId,
+          expiresIn: session.expiresIn,
+        });
+
+        return buildAifResponse(body, "on_init", {
+          code: "otp_verified",
+          name: "OTP Verified",
+          short_desc: session.message,
+          list: [
+            ...(session.beneficiaryName
+              ? [
+                  {
+                    code: "beneficiary_name",
+                    name: "Beneficiary Name",
+                    value: session.beneficiaryName,
+                  },
+                ]
+              : []),
+            {
+              code: "session_valid_for",
+              name: "Session Valid For (seconds)",
+              value: String(session.expiresIn),
+            },
+          ],
+        });
+      } catch (err) {
+        return this.buildAifError(body, "on_init", err);
+      }
+    }
+
+    return buildAifResponse(body, "on_init", {
+      code: "invalid_request_type",
+      name: "Error",
+      short_desc: "request_type must be get_otp or verify_otp.",
+    });
+  }
+
+  /**
+   * AIF /status — doc §4.3. Carries no OTP: the request is matched to the session
+   * verified earlier on the same context.transaction_id.
+   */
+  private async handleAifStatus(body: any) {
+    const transactionId = body?.context?.transaction_id;
+    const requestType = String(
+      this.getAifTagValue(body, "request_type") ?? "",
+    )
+      .toLowerCase()
+      .trim();
+
+    if (!transactionId) {
+      return buildAifResponse(
+        body,
+        "on_status",
+        {
+          code: "missing_transaction_id",
+          name: "Missing Input",
+          short_desc:
+            "context.transaction_id is required, and must match the one used to verify the OTP.",
+        },
+        { state: "FAILED" },
+      );
+    }
+
+    const session = this.aifSessionStore.get(transactionId);
+    if (!session) {
+      // Either never verified, or the token aged out — both need a fresh OTP.
+      return buildAifResponse(
+        body,
+        "on_status",
+        {
+          code: "session_expired",
+          name: "Error",
+          short_desc:
+            "There is no verified session for this transaction_id. A new OTP is needed before the status can be checked.",
+        },
+        { state: "FAILED" },
+      );
+    }
+
+    // A transaction is bound to the beneficiary it was verified for; refuse a swap.
+    const requestedBeneficiaryId = this.getAifNumericTag(body, "beneficiary_id");
+    if (
+      requestedBeneficiaryId &&
+      requestedBeneficiaryId !== session.beneficiaryId
+    ) {
+      return buildAifResponse(
+        body,
+        "on_status",
+        {
+          code: "session_expired",
+          name: "Error",
+          short_desc:
+            "beneficiary_id does not match the beneficiary verified on this transaction_id.",
+        },
+        { state: "FAILED" },
+      );
+    }
+
+    try {
+      if (requestType === "loan_status") {
+        const loanApplicationNumber = this.getAifNumericTag(body, "loan_application_number");
+        // No length check: AIF loan application numbers vary in length (doc §5).
+        if (!loanApplicationNumber) {
+          return buildAifResponse(
+            body,
+            "on_status",
+            {
+              code: "invalid_loan_application_number",
+              name: "Missing Input",
+              short_desc: "A numeric loan application number is required.",
+            },
+            { state: "FAILED" },
+          );
+        }
+
+        const status = await this.aifService.getLoanStatus(
+          loanApplicationNumber,
+          session.token,
+        );
+
+        return buildAifResponse(body, "on_status", {
+          code: "loan_status",
+          name: "Loan Application Status",
+          // AIF answers with the status word itself (e.g. "Disbursed"); the loan number
+          // it applies to is in the list below.
+          short_desc: status,
+          list: [
+            {
+              code: "loan_application_number",
+              name: "Loan Application Number",
+              value: loanApplicationNumber,
+            },
+            { code: "status", name: "Status", value: status },
+            { code: "source", name: "Source", value: "AIF Portal" },
+          ],
+        });
+      }
+
+      if (requestType === "grievance_status") {
+        const tickets = await this.aifService.getSupportTickets(
+          session.beneficiaryId,
+          session.token,
+        );
+        return buildAifGrievanceResponse(body, tickets);
+      }
+
+      return buildAifResponse(
+        body,
+        "on_status",
+        {
+          code: "invalid_request_type",
+          name: "Error",
+          short_desc: "request_type must be loan_status or grievance_status.",
+        },
+        { state: "FAILED" },
+      );
+    } catch (err) {
+      return this.buildAifError(body, "on_status", err);
     }
   }
 

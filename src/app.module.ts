@@ -35,6 +35,8 @@ import { SchemeQdrantService } from "./services/scheme-qdrant/scheme-qdrant.serv
 import { EmbeddingService } from "./services/scheme-qdrant/embedding.service";
 import { QdrantClientService } from "./services/scheme-qdrant/qdrant.client";
 import { SchemeCatalogService } from "./services/scheme-qdrant/scheme-catalog.service";
+import { AifService } from "./services/aif/aif.service";
+import { AifSessionStore } from "./services/aif/aif-session.store";
 
 @Module({
   imports: [
@@ -82,6 +84,8 @@ import { SchemeCatalogService } from "./services/scheme-qdrant/scheme-catalog.se
     QdrantClientService,
     SchemeCatalogService,
     SchemeQdrantService,
+    AifService,
+    AifSessionStore,
   ],
 })
 export class AppModule {}
